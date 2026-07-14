@@ -1,0 +1,1 @@
+INSERT OR IGNORE INTO users (id,username,password_hash,role,is_active,created_at,updated_at) VALUES ('user-admin-001','admin','pbkdf2sha256:100000:5308e827a8329ca0f841ca446b445769:b7139de4bf13f443d41b632fb746f8da689bba01894771d602f672f1c467237e','admin',1,datetime('now'),datetime('now'));

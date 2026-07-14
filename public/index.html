@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Wealth Tracker - ระบบบันทึกรายรับรายจ่ายอัจฉริยะ</title>
+  <!-- SEO Meta Tags -->
+  <meta name="description" content="ระบบบันทึกและจัดการรายรับรายจ่ายอัจฉริยะ ดูรายงานภาพรวม วางแผนรายจ่ายล่วงหน้า แนบสลิป/บิล PDF และส่งออกรายงาน Excel อย่างสวยงามใน Slate Light Theme">
+  <meta name="author" content="Antigravity">
+  
+  <!-- Premium Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Custom Premium CSS -->
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+  <!-- App Shell Container -->
+  <div class="app-container">
+    
+    <!-- SIDEBAR NAVIGATION -->
+    <aside class="app-sidebar" id="appSidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-header-top">
+          <div class="brand-logo">
+            <i class="fa-solid fa-wallet brand-icon"></i>
+            <span class="brand-name">WealthTracker</span>
+          </div>
+          <button class="sidebar-close-btn" id="sidebarCloseBtn" aria-label="Close Sidebar">&times;</button>
+        </div>
+        <p class="brand-tagline">ระบบบริหารเงินอัจฉริยะ</p>
+      </div>
+      
+      <nav class="sidebar-nav">
+        <button class="nav-btn active" data-target="dashboard" id="btn-nav-dashboard">
+          <i class="fa-solid fa-chart-pie"></i>
+          <span>หน้าแดชบอร์ด</span>
+        </button>
+        <button class="nav-btn" data-target="transactions" id="btn-nav-transactions">
+          <i class="fa-solid fa-list-check"></i>
+          <span>บันทึกรายรับ-รายจ่าย</span>
+        </button>
+        <button class="nav-btn" data-target="accounts" id="btn-nav-accounts">
+          <i class="fa-solid fa-building-columns"></i>
+          <span>บัญชีการเงิน</span>
+        </button>
+        <button class="nav-btn" data-target="categories" id="btn-nav-categories">
+          <i class="fa-solid fa-tags"></i>
+          <span>จัดการหมวดหมู่</span>
+        </button>
+        <button class="nav-btn" data-target="reports" id="btn-nav-reports">
+          <i class="fa-solid fa-file-excel"></i>
+          <span>รายงาน &amp; ส่งออก</span>
+        </button>
+        <button class="nav-btn" data-target="trash" id="btn-nav-trash">
+          <i class="fa-solid fa-trash-can"></i>
+          <span>ถังขยะ (Trash)</span>
+        </button>
+        <button class="nav-btn" data-target="admin" id="btn-nav-admin" style="display:none;">
+          <i class="fa-solid fa-shield-halved"></i>
+          <span>Admin Panel</span>
+        </button>
+      </nav>
+      
+      <div class="sidebar-footer">
+        <div class="system-status">
+          <span class="status-indicator online"></span>
+          <span class="status-text">Cloudflare Ready Server</span>
+        </div>
+        
+        <div class="backup-actions">
+          <button class="btn btn-outline btn-xs" id="btn-sidebar-backup" title="สำรองข้อมูลระบบ">
+            <i class="fa-solid fa-cloud-arrow-down"></i> Backup
+          </button>
+          <button class="btn btn-outline btn-xs" id="btn-sidebar-restore" title="นำเข้าข้อมูลระบบ">
+            <i class="fa-solid fa-cloud-arrow-up"></i> Restore
+          </button>
+          <input type="file" id="file-restore-input" accept=".json" style="display: none;">
+        </div>
+
+        <div class="sidebar-user-info" id="sidebar-user-info" style="padding: 0.5rem 0; font-size: 0.78rem; color: var(--text-light);">
+          <i class="fa-solid fa-user-circle"></i> <span id="sidebar-username">user</span>
+          <button class="btn btn-ghost btn-xs" id="btn-logout" style="margin-left:0.5rem;" title="ออกจากระบบ">
+            <i class="fa-solid fa-right-from-bracket"></i>
+          </button>
+        </div>
+        
+        <div class="footer-copyright">
+          &copy; 2026 Smart Wealth Tracker v2.0
+        </div>
+      </div>
+    </aside>
+
+    <!-- Sidebar Overlay for Mobile -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- MAIN CONTENT AREA -->
+    <main class="app-main">
+      
+      <!-- HEADER -->
+      <header class="app-header">
+        <div class="header-left">
+          <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle Sidebar">
+            <i class="fa-solid fa-bars"></i>
+          </button>
+          <h1 class="page-title" id="pageTitle">Dashboard</h1>
+        </div>
+        
+        <div class="header-right">
+          <div class="current-date-badge">
+            <i class="fa-regular fa-calendar"></i>
+            <span id="header-date">29 พ.ค. 2569</span>
+          </div>
+          <button class="btn btn-primary" id="btn-quick-transaction">
+            <i class="fa-solid fa-plus"></i> เพิ่มธุรกรรมใหม่
+          </button>
+        </div>
+      </header>
+
+      <!-- VIEWPORT FOR VIEWS -->
+      <div class="app-viewport">
+
+        <!-- 1. DASHBOARD VIEW -->
+        <section class="tab-view active" id="view-dashboard">
+          
+          <!-- Key Metrics Grid -->
+          <div class="metrics-grid">
+            <div class="metric-card" id="metric-total-wealth">
+              <div class="metric-icon bg-indigo-light text-indigo">
+                <i class="fa-solid fa-vault"></i>
+              </div>
+              <div class="metric-info">
+                <span class="metric-label">สินทรัพย์สุทธิรวม</span>
+                <h3 class="metric-value">฿0.00</h3>
+                <span class="metric-subtext">เงินคงเหลือสะสมจากทุกบัญชี</span>
+              </div>
+            </div>
+            
+            <div class="metric-card" id="metric-total-income">
+              <div class="metric-icon bg-emerald-light text-emerald">
+                <i class="fa-solid fa-chart-line"></i>
+              </div>
+              <div class="metric-info">
+                <span class="metric-label">รายรับรวม (เดือนนี้)</span>
+                <h3 class="metric-value">฿0.00</h3>
+                <span class="metric-subtext" id="income-month-name">อัปเดต ณ ปัจจุบัน</span>
+              </div>
+            </div>
+            
+            <div class="metric-card" id="metric-total-expense">
+              <div class="metric-icon bg-rose-light text-rose">
+                <i class="fa-solid fa-chart-line-down"></i>
+              </div>
+              <div class="metric-info">
+                <span class="metric-label">รายจ่ายรวม (เดือนนี้)</span>
+                <h3 class="metric-value">฿0.00</h3>
+                <span class="metric-subtext" id="expense-month-name">อัปเดต ณ ปัจจุบัน</span>
+              </div>
+            </div>
+            
+            <div class="metric-card" id="metric-future-expense">
+              <div class="metric-icon bg-amber-light text-amber">
+                <i class="fa-solid fa-hourglass-half"></i>
+              </div>
+              <div class="metric-info">
+                <span class="metric-label">รายจ่ายล่วงหน้าค้างจ่าย</span>
+                <h3 class="metric-value">฿0.00</h3>
+                <span class="metric-subtext">วางแผนรอจ่ายในอนาคต</span>
+              </div>
+            </div>
+
+            <div class="metric-card" id="metric-overdue-expense" style="cursor: pointer;">
+              <div class="metric-icon bg-rose-light text-rose">
+                <i class="fa-solid fa-triangle-exclamation text-rose"></i>
+              </div>
+              <div class="metric-info">
+                <span class="metric-label">ยอดเกินกำหนดชำระ</span>
+                <h3 class="metric-value">฿0.00</h3>
+                <span class="metric-subtext" id="overdue-count">เกินกำหนด 0 รายการ</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Upcoming Expense Alerts (Today and Next 7 Days) -->
+          <div id="upcoming-alerts-container"></div>
+
+          <!-- Charts Section Grid -->
+          <div class="dashboard-grid-2">
+            <!-- Chart Card 1 -->
+            <div class="content-card chart-card">
+              <div class="card-header">
+                <h4 class="card-title"><i class="fa-solid fa-chart-column text-indigo"></i> สรุปรายรับเทียบรายจ่าย (7 วันย้อนหลัง & ล่วงหน้า 7 วัน)</h4>
+              </div>
+              <div class="chart-container">
+                <canvas id="incomeExpenseChart"></canvas>
+              </div>
+            </div>
+            
+            <!-- Chart Card 2 -->
+            <div class="content-card chart-card">
+              <div class="card-header">
+                <h4 class="card-title"><i class="fa-solid fa-chart-pie text-indigo"></i> สัดส่วนการใช้จ่ายแยกตามหมวดหมู่ (เดือนนี้)</h4>
+              </div>
+              <div class="chart-container">
+                <canvas id="categoryChart"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- Upcoming & Accounts List Grid -->
+          <div class="dashboard-grid-2">
+            <!-- Box 1: Upcoming Expenses -->
+            <div class="content-card list-card">
+              <div class="card-header flex-between">
+                <h4 class="card-title"><i class="fa-regular fa-clock text-amber"></i> รายการจ่ายเงินล่วงหน้า (Upcoming)</h4>
+                <span class="badge badge-amber" id="upcoming-count">0 รายการ</span>
+              </div>
+              <div class="list-body scrollbar" id="upcoming-expenses-list">
+                <!-- Dynamic Content -->
+                <div class="empty-state">
+                  <i class="fa-regular fa-calendar-check empty-icon text-slate"></i>
+                  <p class="empty-text">ไม่มีรายการใช้จ่ายล่วงหน้า</p>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Box 2: Accounts Quick List -->
+            <div class="content-card list-card">
+              <div class="card-header flex-between">
+                <h4 class="card-title"><i class="fa-solid fa-building-columns text-emerald"></i> บัญชีและการเงินสะสม</h4>
+                <button class="btn btn-ghost btn-xs text-indigo" id="btn-quick-add-account">
+                  <i class="fa-solid fa-plus"></i> เพิ่มบัญชี
+                </button>
+              </div>
+              <div class="list-body scrollbar" id="dashboard-accounts-list">
+                <!-- Dynamic Content -->
+              </div>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- 2. TRANSACTIONS VIEW -->
+        <section class="tab-view" id="view-transactions">
+          
+          <!-- Filter and Actions Control Bar -->
+          <div class="control-bar content-card">
+            <div class="search-input-group">
+              <i class="fa-solid fa-magnifying-glass search-icon"></i>
+              <input type="text" id="tx-search" placeholder="ค้นหาบันทึก หรือรายละเอียดธุรกรรม...">
+            </div>
+            
+            <div class="filters-group">
+              <div class="filter-item">
+                <label for="filter-type">ประเภท</label>
+                <select id="filter-type">
+                  <option value="all">ทั้งหมด</option>
+                  <option value="income">รายรับ</option>
+                  <option value="expense">รายจ่าย</option>
+                  <option value="future">จ่ายล่วงหน้า</option>
+                </select>
+              </div>
+              
+              <div class="filter-item">
+                <label for="filter-category">หมวดหมู่</label>
+                <select id="filter-category">
+                  <option value="all">ทั้งหมด</option>
+                  <!-- Dynamic Categories Options -->
+                </select>
+              </div>
+              
+              <div class="filter-item">
+                <label for="filter-account">บัญชีการเงิน</label>
+                <select id="filter-account">
+                  <option value="all">ทั้งหมด</option>
+                  <!-- Dynamic Accounts Options -->
+                </select>
+              </div>
+
+              <div class="filter-item">
+                <label for="filter-date-start">ช่วงวันที่</label>
+                <div class="date-range-inputs">
+                  <input type="date" id="filter-date-start">
+                  <span>ถึง</span>
+                  <input type="date" id="filter-date-end">
+                </div>
+              </div>
+
+              <button class="btn btn-outline" id="btn-reset-filters" title="ล้างตัวกรองทั้งหมด">
+                <i class="fa-solid fa-rotate-left"></i> รีเซ็ต
+              </button>
+            </div>
+          </div>
+
+          <!-- Transactions Table Section -->
+          <div class="content-card overflow-hidden">
+            <div class="table-container scrollbar">
+              <table class="premium-table" id="transactions-table">
+                <thead>
+                  <tr>
+                    <th>วันที่</th>
+                    <th>ประเภท</th>
+                    <th>หมวดหมู่</th>
+                    <th>รายละเอียด</th>
+                    <th>ชำระโดย</th>
+                    <th>บัญชีการเงิน</th>
+                    <th class="text-right">จำนวนเงิน</th>
+                    <th class="text-center">บิล/สลิป</th>
+                    <th class="text-center">การจัดการ</th>
+                  </tr>
+                </thead>
+                <tbody id="transactions-table-body">
+                  <!-- Dynamic Rows -->
+                </tbody>
+              </table>
+            </div>
+            
+            <div class="table-footer flex-between">
+              <span class="text-slate text-sm" id="table-entries-info">แสดง 0 ถึง 0 จากทั้งหมด 0 รายการ</span>
+              <div class="pagination" id="table-pagination">
+                <!-- Pagination buttons -->
+              </div>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- 3. ACCOUNTS VIEW -->
+        <section class="tab-view" id="view-accounts">
+          
+          <div class="accounts-layout">
+            <!-- Left Side: Add/Edit Account Form -->
+            <div class="content-card account-form-card">
+              <div class="card-header">
+                <h4 class="card-title" id="account-form-title"><i class="fa-solid fa-plus-minus text-indigo"></i> สร้างบัญชีการเงินใหม่</h4>
+              </div>
+              
+              <form id="account-form" class="premium-form">
+                <input type="hidden" id="account-id">
+                
+                <div class="form-group">
+                  <label for="account-name" class="required">ชื่อบัญชีการเงิน</label>
+                  <input type="text" id="account-name" placeholder="เช่น กสิกร ออมทรัพย์, กระเป๋าเงินหลัก" required>
+                </div>
+                
+                <div class="form-row-2">
+                  <div class="form-group">
+                    <label for="account-type" class="required">ประเภทบัญชี</label>
+                    <select id="account-type" required>
+                      <option value="bank">บัญชีธนาคาร (เงินโอน)</option>
+                      <option value="cash">เงินสด (Cash)</option>
+                    </select>
+                  </div>
+                  
+                  <div class="form-group" id="group-bank-name">
+                    <label for="account-bank">ธนาคาร</label>
+                    <select id="account-bank">
+                      <option value="กสิกรไทย">ธนาคารกสิกรไทย (KBANK)</option>
+                      <option value="ไทยพาณิชย์">ธนาคารไทยพาณิชย์ (SCB)</option>
+                      <option value="กรุงเทพ">ธนาคารกรุงเทพ (BBL)</option>
+                      <option value="กรุงไทย">ธนาคารกรุงไทย (KTB)</option>
+                      <option value="กรุงศรีอยุธยา">ธนาคารกรุงศรีอยุธยา (BAY)</option>
+                      <option value="ทหารไทยธนชาต">ธนาคารทหารไทยธนชาต (TTB)</option>
+                      <option value="ออมสิน">ธนาคารออมสิน (GSB)</option>
+                      <option value="อื่นๆ">ธนาคารอื่นๆ</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="form-row-2">
+                  <div class="form-group" id="group-account-number">
+                    <label for="account-number">เลขบัญชีธนาคาร</label>
+                    <input type="text" id="account-number" placeholder="เช่น 123-4-56789-0">
+                  </div>
+                  
+                  <div class="form-group">
+                    <label for="account-initial-balance" class="required">ยอดเงินตั้งต้น</label>
+                    <div class="input-prefix-group">
+                      <span class="input-prefix">฿</span>
+                      <input type="number" id="account-initial-balance" step="0.01" min="0" placeholder="0.00" required>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="form-actions-right">
+                  <button type="button" class="btn btn-outline" id="btn-cancel-account">ยกเลิก</button>
+                  <button type="submit" class="btn btn-primary" id="btn-submit-account">บันทึกบัญชี</button>
+                </div>
+              </form>
+            </div>
+
+            <!-- Right Side: Accounts List Grid -->
+            <div class="accounts-grid-section">
+              <div class="flex-between mb-4">
+                <h3 class="section-heading"><i class="fa-solid fa-list text-slate"></i> รายชื่อบัญชีการเงินทั้งหมด</h3>
+                <span class="badge badge-indigo" id="accounts-count">0 บัญชี</span>
+              </div>
+              
+              <div class="accounts-cards-grid" id="accounts-cards-container">
+                <!-- Dynamic Accounts Cards -->
+              </div>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- 4. CATEGORIES VIEW -->
+        <section class="tab-view" id="view-categories">
+          
+          <div class="categories-layout">
+            <!-- Left Side: Add Category Form -->
+            <div class="content-card category-form-card">
+              <div class="card-header">
+                <h4 class="card-title" id="category-form-title"><i class="fa-solid fa-tags text-indigo"></i> จัดการหมวดหมู่รายรับ-รายจ่าย</h4>
+              </div>
+              
+              <form id="category-form" class="premium-form">
+                <input type="hidden" id="category-id">
+                
+                <div class="form-group">
+                  <label for="category-name" class="required">ชื่อหมวดหมู่</label>
+                  <input type="text" id="category-name" placeholder="เช่น ค่ากาแฟ, เงินปันผลหุ้น" required>
+                </div>
+                
+                <div class="form-group">
+                  <label for="category-type" class="required">ประเภทธุรกรรมที่ใช้</label>
+                  <select id="category-type" required>
+                    <option value="expense">หมวดหมู่รายจ่าย (Expense)</option>
+                    <option value="income">หมวดหมู่รายรับ (Income)</option>
+                  </select>
+                </div>
+
+                <div class="form-actions-right">
+                  <button type="button" class="btn btn-outline" id="btn-cancel-category">ยกเลิก</button>
+                  <button type="submit" class="btn btn-primary" id="btn-submit-category">บันทึกหมวดหมู่</button>
+                </div>
+              </form>
+              
+              <div class="alert-box alert-note mt-6">
+                <i class="fa-solid fa-circle-info alert-icon"></i>
+                <div class="alert-content">
+                  <p class="alert-title">คำแนะนำหมวดหมู่</p>
+                  <p class="alert-desc">หมวดหมู่หลักที่มีสัญลักษณ์รูปกุญแจ <i class="fa-solid fa-lock text-slate-400"></i> เป็นของระบบตั้งต้น ไม่สามารถแก้ไขหรือลบได้ เพื่อรักษาโครงสร้างรายงานภาพรวมของแอปพลิเคชัน</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right Side: Double List Grid -->
+            <div class="categories-lists-grid">
+              <!-- Income Categories Panel -->
+              <div class="content-card category-list-panel">
+                <div class="card-header bg-emerald-light-soft text-emerald flex-between">
+                  <h4 class="card-title"><i class="fa-solid fa-circle-arrow-down"></i> หมวดหมู่ฝั่งรายรับ (Income)</h4>
+                  <span class="badge badge-emerald" id="income-categories-count">0</span>
+                </div>
+                <div class="list-body scrollbar" id="income-categories-list">
+                  <!-- Dynamic Content -->
+                </div>
+              </div>
+              
+              <!-- Expense Categories Panel -->
+              <div class="content-card category-list-panel">
+                <div class="card-header bg-rose-light-soft text-rose flex-between">
+                  <h4 class="card-title"><i class="fa-solid fa-circle-arrow-up"></i> หมวดหมู่ฝั่งรายจ่าย (Expense)</h4>
+                  <span class="badge badge-rose" id="expense-categories-count">0</span>
+                </div>
+                <div class="list-body scrollbar" id="expense-categories-list">
+                  <!-- Dynamic Content -->
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- 5. REPORTS & EXPORT VIEW -->
+        <section class="tab-view" id="view-reports">
+          
+          <div class="reports-layout">
+            <!-- Left Side: Excel Export Prominent Banner -->
+            <div class="content-card export-banner-card">
+              <div class="export-banner-icon">
+                <i class="fa-solid fa-file-excel"></i>
+              </div>
+              <h2 class="export-banner-title">ดาวน์โหลดรายงาน Excel อัจฉริยะ</h2>
+              <p class="export-banner-desc">
+                ออกรายงานไฟล์ Excel (.xlsx) ที่จัดรูปแบบแยกหน้างานอย่างมืออาชีพ ทั้ง สรุปภาพรวมทางการเงิน (Overview), ประวัติรายรับรายจ่ายฉบับสมบูรณ์ (Transactions), บัญชีการเงินคงเหลือ (Accounts), และรายการหมวดหมู่ (Categories) นำไปวิเคราะห์ต่อใน Excel หรือ Google Sheets ได้ในคลิกเดียว
+              </p>
+              
+              <button class="btn btn-primary btn-lg" id="btn-export-excel-report">
+                <i class="fa-solid fa-file-arrow-down"></i> ดาวน์โหลดรายงาน Excel ตอนนี้
+              </button>
+            </div>
+
+            <!-- Right Side: Advanced Summary Report Table -->
+            <div class="content-card reports-summary-card">
+              <div class="card-header">
+                <h4 class="card-title"><i class="fa-solid fa-magnifying-glass-chart text-indigo"></i> รายงานวิเคราะห์เจาะลึกแบบกรองข้อมูล</h4>
+              </div>
+              
+              <div class="reports-stats-mini mb-6">
+                <div class="stat-mini-box">
+                  <span class="stat-mini-lbl text-emerald">รายรับในขอบเขต</span>
+                  <span class="stat-mini-val text-emerald" id="report-scope-income">฿0.00</span>
+                </div>
+                <div class="stat-mini-box">
+                  <span class="stat-mini-lbl text-rose">รายจ่ายในขอบเขต</span>
+                  <span class="stat-mini-val text-rose" id="report-scope-expense">฿0.00</span>
+                </div>
+                <div class="stat-mini-box">
+                  <span class="stat-mini-lbl text-indigo">ดุลยภาพสุทธิ</span>
+                  <span class="stat-mini-val text-indigo" id="report-scope-net">฿0.00</span>
+                </div>
+              </div>
+
+              <div class="table-container scrollbar compact-table-container">
+                <table class="premium-table compact" id="reports-summary-table">
+                  <thead>
+                    <tr>
+                      <th>วันที่</th>
+                      <th>ประเภท</th>
+                      <th>หมวดหมู่</th>
+                      <th>บัญชี</th>
+                      <th>รายละเอียด</th>
+                      <th class="text-right">จำนวนเงิน</th>
+                    </tr>
+                  </thead>
+                  <tbody id="reports-summary-body">
+                    <tr>
+                      <td colspan="6" class="text-center text-slate py-8">ไม่มีรายการในช่วงเวลาที่กรอง กรุณาปรับเปลี่ยนตัวกรองที่แท็บบันทึกธุรกรรม</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- 6. TRASH VIEW -->
+        <section class="tab-view" id="view-trash">
+          <div class="content-card" style="margin-bottom:1.5rem;">
+            <div class="card-header flex-between">
+              <h4 class="card-title"><i class="fa-solid fa-trash-can text-rose"></i> ถังขยะ — รายการที่ถูกลบ</h4>
+              <span class="text-sm text-slate">รายการในถังขยะสามารถกู้คืนหรือลบถาวรได้</span>
+            </div>
+            <div id="trash-transactions-container">
+              <div class="empty-state"><i class="fa-solid fa-check-circle empty-icon text-emerald"></i><p class="empty-text">ถังขยะว่างเปล่า</p></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 7. ADMIN PANEL VIEW -->
+        <section class="tab-view" id="view-admin">
+          <div class="dashboard-grid-2">
+            <!-- System Stats -->
+            <div class="content-card">
+              <div class="card-header"><h4 class="card-title"><i class="fa-solid fa-database text-indigo"></i> System Status</h4></div>
+              <div id="admin-stats-container"><p class="text-slate">กำลังโหลด...</p></div>
+            </div>
+            <!-- User Management -->
+            <div class="content-card">
+              <div class="card-header flex-between">
+                <h4 class="card-title"><i class="fa-solid fa-users text-indigo"></i> จัดการผู้ใช้</h4>
+                <button class="btn btn-primary btn-xs" id="btn-show-create-user"><i class="fa-solid fa-plus"></i> เพิ่มผู้ใช้</button>
+              </div>
+              <div id="admin-create-user-form" style="display:none; padding:1rem 0;">
+                <div class="form-row-2" style="gap:0.75rem;">
+                  <input type="text" id="new-user-username" placeholder="Username" class="form-control">
+                  <input type="password" id="new-user-password" placeholder="Password" class="form-control">
+                </div>
+                <button class="btn btn-primary btn-xs" id="btn-create-user" style="margin-top:0.5rem;">สร้างผู้ใช้</button>
+              </div>
+              <div id="admin-users-list"><p class="text-slate">กำลังโหลด...</p></div>
+            </div>
+          </div>
+          <!-- Audit Logs -->
+          <div class="content-card" style="margin-top:1.5rem;">
+            <div class="card-header"><h4 class="card-title"><i class="fa-solid fa-scroll text-amber"></i> Audit Log (100 รายการล่าสุด)</h4></div>
+            <div class="table-container scrollbar" style="max-height:400px;">
+              <table class="premium-table compact" id="audit-table">
+                <thead><tr><th>เวลา</th><th>ผู้ใช้</th><th>Action</th><th>Resource</th><th>IP</th></tr></thead>
+                <tbody id="audit-table-body"><tr><td colspan="5" class="text-center text-slate">กำลังโหลด...</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+          <!-- LINE Messaging Bot Management -->
+          <div class="content-card" style="margin-top:1.5rem;">
+            <div class="card-header flex-between">
+              <h4 class="card-title">
+                <i class="fa-brands fa-line" style="color:#06c755;"></i> LINE Messaging Bot
+              </h4>
+              <span class="badge badge-slate" id="line-bot-status-badge">กำลังโหลด...</span>
+            </div>
+
+            <!-- Status row -->
+            <div id="line-bot-status-row" style="margin-bottom:1rem; padding:0.6rem 0.9rem; background:var(--surface-2); border-radius:0.5rem; font-size:0.82rem; color:var(--text-muted);">
+              <i class="fa-solid fa-circle-info"></i> <span id="line-bot-status-text">กำลังตรวจสอบสถานะ...</span>
+            </div>
+
+            <!-- Settings Action -->
+            <div style="display:flex; gap:1rem; flex-wrap:wrap; align-items:flex-end; background: rgba(255,255,255,0.02); padding: 1.25rem; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-bottom: 1rem;">
+              <div style="display:flex; flex-direction:column; gap:0.25rem;">
+                <button class="btn btn-primary" onclick="openLineSettingsModal()" style="height: 38px;">
+                  <i class="fa-solid fa-gear"></i> จัดการตั้งค่า LINE
+                </button>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:0.25rem;">
+                <button class="btn btn-outline" id="btn-test-line" onclick="testLineBot()" style="height: 38px;">
+                  <i class="fa-solid fa-paper-plane"></i> ทดสอบส่ง
+                </button>
+              </div>
+              
+              <div style="display:flex; align-items:center; gap:0.5rem; border-left: 1px solid var(--border-color); padding-left: 1rem; flex-wrap: wrap;">
+                <div style="display:flex; flex-direction:column; gap:0.25rem;">
+                  <label style="font-size: 0.72rem; color: var(--text-muted); font-weight: 600;">เลือกวันที่ Daily Report</label>
+                  <input type="date" id="report-daily-date" class="form-input" style="width: 140px; padding: 0.35rem 0.5rem; height: 38px; border-radius: var(--radius-sm); background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-color); color: #fff;" />
+                </div>
+                <button class="btn btn-ghost" id="btn-send-report" onclick="sendLineReport()" style="height: 38px; margin-top: auto;">
+                  <i class="fa-solid fa-chart-bar"></i> ส่ง Daily
+                </button>
+              </div>
+
+              <div style="display:flex; align-items:center; gap:0.5rem; border-left: 1px solid var(--border-color); padding-left: 1rem; flex-wrap: wrap;">
+                <div style="display:flex; flex-direction:column; gap:0.25rem;">
+                  <label style="font-size: 0.72rem; color: var(--text-muted); font-weight: 600;">เลือกเดือน Monthly Report</label>
+                  <input type="month" id="report-monthly-date" class="form-input" style="width: 140px; padding: 0.35rem 0.5rem; height: 38px; border-radius: var(--radius-sm); background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-color); color: #fff;" />
+                </div>
+                <button class="btn btn-ghost" id="btn-send-monthly-report" onclick="sendLineMonthlyReport()" style="height: 38px; margin-top: auto;">
+                  <i class="fa-solid fa-calendar-check"></i> ส่ง Monthly
+                </button>
+              </div>
+            </div>
+
+            <!-- Info notes -->
+            <div style="margin-top:1rem; padding:0.7rem 0.9rem; background:var(--surface-2); border-radius:0.5rem; font-size:0.78rem; color:var(--text-muted); line-height:1.6;">
+              <p><i class="fa-solid fa-shield-halved text-emerald"></i> <strong>ความปลอดภัย:</strong> Token ถูกเก็บใน Database (admin เท่านั้นแก้ได้) หรือตั้งใน Source Code</p>
+              <p style="margin-top:0.3rem;"><i class="fa-solid fa-clock text-indigo"></i> Daily Report ส่งอัตโนมัติเวลา 20:00 น. (เมื่อตั้ง Cron Trigger แล้ว)</p>
+            </div>
+          </div>
+
+        </section>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- --- 1. MODAL: ADD/EDIT TRANSACTION (ป๊อปอัปเพิ่ม/แก้ไขธุรกรรม) --- -->
+  <div class="modal-backdrop" id="modal-transaction">
+    <div class="modal-card modal-tx">
+      <div class="modal-header">
+        <h3 class="modal-title" id="tx-modal-title"><i class="fa-solid fa-money-bill-transfer text-indigo"></i> บันทึกธุรกรรมการเงิน</h3>
+        <button class="modal-close" id="btn-close-tx-modal">&times;</button>
+      </div>
+      
+      <form id="transaction-form" class="premium-form">
+        <input type="hidden" id="tx-id">
+        <input type="hidden" id="tx-slip-url">
+        
+        <div class="modal-body scrollbar" style="display: flex; flex-direction: column; gap: 1.25rem; padding: 2rem 2.25rem;">
+          <div class="form-group mb-4">
+            <label class="required" style="font-weight: 700; margin-bottom: 0.5rem; display: block;">ประเภทรายการ</label>
+            <div class="transaction-type-blocks">
+              <button type="button" class="type-block-btn type-expense active" data-type="expense">
+                <i class="fa-solid fa-circle-chevron-up"></i>
+                <span>รายจ่าย (-)</span>
+              </button>
+              <button type="button" class="type-block-btn type-income" data-type="income">
+                <i class="fa-solid fa-circle-chevron-down"></i>
+                <span>รายรับ (+)</span>
+              </button>
+              <button type="button" class="type-block-btn type-future" data-type="future">
+                <i class="fa-regular fa-clock"></i>
+                <span>รายจ่ายล่วงหน้า</span>
+              </button>
+            </div>
+            <input type="hidden" id="tx-type" value="expense">
+          </div>
+          
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="tx-date" class="required">วันที่ทำรายการ</label>
+              <input type="date" id="tx-date" required>
+            </div>
+            
+            <div class="form-group" id="group-tx-status" style="display: none;">
+              <label for="tx-status" class="required">สถานะการชำระเงิน</label>
+              <select id="tx-status">
+                <option value="pending">ยังไม่ชำระ (Pending)</option>
+                <option value="paid">ชำระแล้ว (Paid)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="tx-category" class="required">หมวดหมู่</label>
+              <select id="tx-category" required>
+                <!-- Dynamic Categories Options -->
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label for="tx-amount" class="required">จำนวนเงิน (บาท)</label>
+              <div class="input-prefix-group">
+                <span class="input-prefix">฿</span>
+                <input type="number" id="tx-amount" step="0.01" min="0.01" placeholder="0.00" required>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="tx-payment-method" class="required">วิธีการชำระ/รับเงิน</label>
+              <select id="tx-payment-method" required>
+                <option value="Transfer">เงินโอนผ่านธนาคาร</option>
+                <option value="Cash">เงินสด (Cash)</option>
+              </select>
+            </div>
+            
+            <div class="form-group" id="group-tx-account">
+              <label for="tx-account" class="required">บัญชีการเงินที่ผูก</label>
+              <select id="tx-account" required>
+                <!-- Dynamic Bank Accounts -->
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="tx-notes">หมายเหตุเพิ่มเติม</label>
+            <input type="text" id="tx-notes" placeholder="เช่น ซื้อของกินเย็น, ค่าเบี้ยประกัน...">
+          </div>
+
+          <!-- Attachment Field -->
+          <div class="form-group">
+            <label>เอกสารบิล หรือ สลิปโอนเงินแนบ (บิล PDF / รูปภาพ JPG, PNG) <span class="text-helper" style="font-weight: 500; font-size: 0.8rem; color: var(--text-light);">(ไม่จำเป็นต้องแนบ / Optional)</span></label>
+            
+            <div class="attachment-upload-zone" id="attachment-upload-zone">
+              <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
+              <span class="upload-text">คลิกเพื่อเลือกไฟล์ หรือ ลากสลิป/บิลมาวางตรงนี้</span>
+              <span class="upload-subtext">ไฟล์ประเภท PDF, PNG, JPG, JPEG (ขนาดไม่เกิน 10MB)</span>
+              <input type="file" id="tx-attachment-input" accept=".jpg,.jpeg,.png,.pdf" style="display: none;">
+            </div>
+            
+            <div class="uploaded-file-badge" id="uploaded-file-badge" style="display: none;">
+              <i class="fa-regular fa-file-pdf" id="badge-file-icon"></i>
+              <span class="file-name" id="badge-file-name">slip.jpg</span>
+              <button type="button" class="btn-remove-attachment" id="btn-remove-attachment" title="ลบไฟล์แนบ">&times;</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer flex-end" style="padding: 1.25rem 2.25rem; background-color: #ffffff; border-top: 1px solid var(--border-color); width: 100%;">
+          <button type="button" class="btn btn-outline" id="btn-cancel-tx-modal">ยกเลิก</button>
+          <button type="submit" class="btn btn-primary" id="btn-submit-tx">บันทึกธุรกรรม</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- --- 2. MODAL: ATTACHMENT VIEW (ป๊อปอัปพรีวิวไฟล์บิล/สลิป) --- -->
+  <div class="modal-backdrop" id="modal-preview-attachment">
+    <div class="modal-card modal-lg">
+      <div class="modal-header">
+        <h3 class="modal-title" id="preview-modal-title"><i class="fa-solid fa-file-invoice-dollar text-indigo"></i> เอกสารแนบธุรกรรม</h3>
+        <button class="modal-close" id="btn-close-preview-modal">&times;</button>
+      </div>
+      <div class="modal-body text-center">
+        <!-- Render image -->
+        <div id="preview-img-container" style="display: none;">
+          <img src="" id="preview-img" alt="สลิปหรือบิลธุรกรรม" class="preview-image-element">
+        </div>
+        <!-- Render PDF in iframe -->
+        <div id="preview-pdf-container" style="display: none;" class="preview-pdf-wrapper">
+          <iframe src="" id="preview-pdf" class="preview-pdf-element" frameborder="0"></iframe>
+        </div>
+        <!-- Error or no attachment -->
+        <div id="preview-error-container" style="display: none;" class="py-12">
+          <i class="fa-solid fa-triangle-exclamation text-rose text-4xl mb-4"></i>
+          <p class="text-slate text-lg">ไม่พบไฟล์เอกสารแนบ หรือเกิดข้อผิดพลาดในการโหลดไฟล์</p>
+        </div>
+      </div>
+      <div class="modal-footer flex-end">
+        <a href="" id="btn-download-preview-file" class="btn btn-primary" target="_blank" download>
+          <i class="fa-solid fa-download"></i> ดาวน์โหลดไฟล์ต้นฉบับ
+        </a>
+        <button class="btn btn-outline ml-2" id="btn-close-preview-modal-footer">ปิดหน้าต่าง</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- --- 3. MODAL: FUTURE EXPENSES DETAILS (ป๊อปอัปแสดงรายละเอียดรายจ่ายล่วงหน้า) --- -->
+  <div class="modal-backdrop" id="modal-future-details">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title"><i class="fa-solid fa-hourglass-half text-amber"></i> รายละเอียดรายจ่ายล่วงหน้าค้างจ่าย</h3>
+        <button class="modal-close" id="btn-close-future-modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <!-- Clickable summary blocks (2x2 Grid) -->
+        <div class="future-blocks-grid mb-6">
+          <div class="future-block-card block-today active" id="block-future-today">
+            <div class="block-icon bg-rose-light text-rose">
+              <i class="fa-solid fa-calendar-day"></i>
+            </div>
+            <div class="block-info">
+              <span class="block-label">ต้องจ่ายวันนี้</span>
+              <h4 class="block-value" id="future-block-today-val">฿0.00</h4>
+              <span class="block-sub" id="future-block-today-count">0 รายการ</span>
+            </div>
+          </div>
+          
+          <div class="future-block-card block-week" id="block-future-week">
+            <div class="block-icon bg-amber-light text-amber">
+              <i class="fa-solid fa-calendar-week"></i>
+            </div>
+            <div class="block-info">
+              <span class="block-label">อีก 7 วันข้างหน้า</span>
+              <h4 class="block-value" id="future-block-week-val">฿0.00</h4>
+              <span class="block-sub" id="future-block-week-count">0 รายการ</span>
+            </div>
+          </div>
+
+          <div class="future-block-card block-month" id="block-future-month">
+            <div class="block-icon bg-indigo-light text-indigo">
+              <i class="fa-solid fa-calendar-days"></i>
+            </div>
+            <div class="block-info">
+              <span class="block-label">อีก 30 วันข้างหน้า</span>
+              <h4 class="block-value" id="future-block-month-val">฿0.00</h4>
+              <span class="block-sub" id="future-block-month-count">0 รายการ</span>
+            </div>
+          </div>
+
+          <div class="future-block-card block-custom" id="block-future-custom">
+            <div class="block-icon bg-slate-light text-slate">
+              <i class="fa-solid fa-sliders"></i>
+            </div>
+            <div class="block-info">
+              <span class="block-label">กำหนดช่วงเวลาเอง</span>
+              <h4 class="block-value" id="future-block-custom-val">฿0.00</h4>
+              <span class="block-sub" id="future-block-custom-count">0 รายการ</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Inline Date fields for Custom Range inside the Modal -->
+        <div id="future-custom-range-inputs" class="form-row-2 mb-4" style="display: none; background-color: var(--bg-app); padding: 1rem; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+          <div class="form-group" style="margin-bottom:0;">
+            <label for="future-custom-start" style="font-size:0.75rem; font-weight:700; color:var(--text-muted);">วันที่เริ่มต้น</label>
+            <input type="date" id="future-custom-start">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label for="future-custom-end" style="font-size:0.75rem; font-weight:700; color:var(--text-muted);">วันที่สิ้นสุด</label>
+            <input type="date" id="future-custom-end">
+          </div>
+        </div>
+        
+        <h4 class="section-heading mb-3" style="font-size: 0.95rem; display: flex; align-items: center; gap: 0.35rem;" id="future-details-title">รายการที่ต้องชำระวันนี้</h4>
+        
+        <!-- Dynamic Details List container -->
+        <div class="scrollbar" id="future-details-list-container" style="max-height: 280px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.5rem; padding-right: 0.25rem;">
+          <!-- Dynamically populated detail rows -->
+        </div>
+      </div>
+      <div class="modal-footer flex-end">
+        <button class="btn btn-outline" id="btn-close-future-modal-footer">ปิดหน้าต่าง</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- --- LOGIN OVERLAY CONTAINER --- -->
+  <div class="login-overlay" id="loginOverlay">
+    <div class="login-card">
+      <div class="login-header">
+        <i class="fa-solid fa-wallet login-logo-icon"></i>
+        <h2 class="login-title">Smart Wealth Tracker</h2>
+        <p class="login-subtitle">ระบบบริหารเงินอัจฉริยะ v2.0</p>
+      </div>
+      <form id="loginForm" class="login-form">
+        <div class="form-group" style="margin-bottom: 0.75rem;">
+          <label for="loginUsername" class="required">ชื่อผู้ใช้ (Username)</label>
+          <input type="text" id="loginUsername" placeholder="กรอกชื่อผู้ใช้..." required autocomplete="username" style="width:100%; padding:0.7rem 1rem; border:1.5px solid var(--border-color); border-radius:10px; font-size:0.95rem;">
+        </div>
+        <div class="form-group" style="margin-bottom: 0.5rem;">
+          <label for="loginPasscode" class="required">รหัสผ่าน (Password)</label>
+          <div class="code-input-group">
+            <input type="password" id="loginPasscode" placeholder="กรอกรหัสผ่าน..." required autocomplete="current-password">
+            <button type="button" class="btn-toggle-passcode" id="btnTogglePasscode" title="แสดง/ซ่อนรหัสผ่าน">
+              <i class="fa-regular fa-eye"></i>
+            </button>
+          </div>
+        </div>
+        <div id="loginError" style="display:none; color:var(--rose); font-size:0.85rem; margin-bottom:0.5rem; padding:0.5rem; background:var(--rose-light,#fff0f0); border-radius:8px;"></div>
+        <button type="submit" class="btn btn-primary btn-block btn-lg" id="btnLoginSubmit" style="margin-top: 0.5rem;">
+          <i class="fa-solid fa-right-to-bracket"></i> เข้าสู่ระบบ
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- --- LINE SETTINGS MODAL --- -->
+  <div class="login-overlay" id="lineSettingsModal" style="display:none; z-index:2000;">
+    <div class="login-card" style="max-width: 500px; width: 90%;">
+      <div class="login-header" style="margin-bottom: 1.5rem;">
+        <i class="fa-brands fa-line" style="color:#06c755; font-size: 2.5rem; margin-bottom: 0.5rem;"></i>
+        <h2 class="login-title" style="font-size: 1.25rem;">ตั้งค่า LINE Messaging API</h2>
+        <p class="login-subtitle">กำหนด Token สำหรับส่งแจ้งเตือนเข้ากลุ่ม</p>
+      </div>
+      
+      <div class="premium-form" style="display:grid; gap:1rem; text-align: left;">
+        <div class="form-group">
+          <label class="form-label" for="line-channel-token">
+            <i class="fa-solid fa-key text-amber"></i> Channel Access Token
+          </label>
+          <div style="position:relative;">
+            <input type="password" id="line-channel-token" class="form-input"
+              placeholder="ใส่ Channel Access Token จาก LINE Developers Console"
+              autocomplete="off" spellcheck="false" style="width:100%;">
+            <button type="button" class="btn btn-ghost" onclick="toggleLineTokenVisibility()"
+              style="position:absolute; right:0.5rem; top:50%; transform:translateY(-50%); padding:0.2rem 0.5rem; font-size:0.8rem;">
+              <i class="fa-solid fa-eye" id="line-token-eye"></i>
+            </button>
+          </div>
+          <p class="form-hint" style="font-size:0.75rem; color:var(--text-muted); margin-top:0.3rem;">ได้จาก LINE Developers Console → Messaging API</p>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="line-group-id">
+            <i class="fa-solid fa-users text-indigo"></i> Group ID
+          </label>
+          <input type="text" id="line-group-id" class="form-input"
+            placeholder="เช่น Cac9ec37115f7a29ed..."
+            autocomplete="off" spellcheck="false" style="width:100%;">
+          <p class="form-hint" style="font-size:0.75rem; color:var(--text-muted); margin-top:0.3rem;">ID กลุ่ม LINE ที่ต้องการส่งข้อความเข้า (บอทต้องอยู่ในกลุ่ม)</p>
+        </div>
+
+        <div style="display:flex; gap:0.75rem; margin-top: 1rem;">
+          <button class="btn btn-outline" style="flex:1;" onclick="closeLineSettingsModal()">
+            ยกเลิก
+          </button>
+          <button class="btn btn-primary" id="btn-save-line-settings" style="flex:1;" onclick="saveLineSettings()">
+            <i class="fa-solid fa-floppy-disk"></i> บันทึก
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Third Party Libraries via CDN -->
+  <!-- ChartJS CDN for Charts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- SheetJS (XLSX) CDN for Excel Export -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <!-- Client-side SPA Application Files -->
+  <script src="js/api.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/export.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
