@@ -108,9 +108,9 @@ export function buildDailyReport({
       if (!accountChanges[accId]) {
         accountChanges[accId] = { income: 0, expense: 0 };
       }
-      if (tx.type === 'income') {
+      if (tx.type === 'income' || tx.type === 'transfer_in') {
         accountChanges[accId].income += amt;
-      } else if (tx.type === 'expense' || (tx.type === 'future' && tx.status === 'paid')) {
+      } else if (tx.type === 'expense' || tx.type === 'transfer_out' || (tx.type === 'future' && tx.status === 'paid')) {
         accountChanges[accId].expense += amt;
       }
     }

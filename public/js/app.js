@@ -211,6 +211,46 @@ function updateTransactionFormAccounts() {
   }
 }
 
+function populateTransferAccountSelects() {
+  const txAccSelect = document.getElementById('tx-account');
+  const txToAccSelect = document.getElementById('tx-to-account');
+  
+  if (!txAccSelect || !txToAccSelect) return;
+  
+  const currentVal = txAccSelect.value;
+  const currentToVal = txToAccSelect.value;
+  
+  txAccSelect.innerHTML = '';
+  txToAccSelect.innerHTML = '';
+  
+  txAccSelect.disabled = false;
+  txToAccSelect.disabled = false;
+  
+  const groupAcc = document.getElementById('group-tx-account');
+  const groupToAcc = document.getElementById('group-tx-to-account');
+  if (groupAcc) groupAcc.style.opacity = '1';
+  if (groupToAcc) groupToAcc.style.opacity = '1';
+
+  State.accounts.forEach(acc => {
+    txAccSelect.innerHTML += `<option value="${acc.id}">${acc.name}</option>`;
+    txToAccSelect.innerHTML += `<option value="${acc.id}">${acc.name}</option>`;
+  });
+  
+  if (State.accounts.some(acc => acc.id === currentVal)) {
+    txAccSelect.value = currentVal;
+  } else if (State.accounts.length > 0) {
+    txAccSelect.value = State.accounts[0].id;
+  }
+  
+  if (State.accounts.some(acc => acc.id === currentToVal)) {
+    txToAccSelect.value = currentToVal;
+  } else if (State.accounts.length > 1) {
+    txToAccSelect.value = State.accounts[1].id;
+  } else if (State.accounts.length > 0) {
+    txToAccSelect.value = State.accounts[0].id;
+  }
+}
+
 function refreshDashboard() {
   const todayStr = new Date().toLocaleDateString('sv-SE');
   // Guard: ensure transactions is always an array
@@ -398,12 +438,16 @@ function refreshTransactionsTable() {
     if (State.filters.type === 'income' && t.type !== 'income') return false;
     if (State.filters.type === 'expense' && t.type !== 'expense') return false;
     if (State.filters.type === 'future' && t.type !== 'future') return false;
+    if (State.filters.type === 'transfer' && t.type !== 'transfer_out' && t.type !== 'transfer_in') return false;
 
     // Category filter
     if (State.filters.category !== 'all' && t.category !== State.filters.category) return false;
 
     // Account filter
     if (State.filters.account !== 'all' && t.accountId !== State.filters.account) return false;
+
+    // Filter out transfer_in to avoid duplicate rows when displaying all accounts
+    if (State.filters.account === 'all' && t.type === 'transfer_in') return false;
 
     // Date filters
     if (State.filters.dateStart && t.date < State.filters.dateStart) return false;
@@ -468,15 +512,26 @@ function refreshTransactionsTable() {
     const acc = State.accounts.find(a => a.id === t.accountId);
     const isIncome = t.type === 'income';
     const isFutureType = t.type === 'future';
+    const isTransferOut = t.type === 'transfer_out';
+    const isTransferIn = t.type === 'transfer_in';
     
     // Amount class
     let amountClass = 'text-amount-exp';
     let amountPrefix = '-฿';
+    let amountStyle = '';
     if (isIncome) {
       amountClass = 'text-amount-inc';
       amountPrefix = '+฿';
     } else if (isFutureType) {
       amountClass = 'text-amount-future';
+    } else if (isTransferOut) {
+      amountClass = 'text-slate';
+      amountPrefix = '-฿';
+      amountStyle = 'style="font-weight: 800; color: #64748b;"';
+    } else if (isTransferIn) {
+      amountClass = 'text-slate';
+      amountPrefix = '+฿';
+      amountStyle = 'style="font-weight: 800; color: #64748b;"';
     }
 
     // Attachment btn
@@ -525,6 +580,8 @@ function refreshTransactionsTable() {
         statusText = '<span class="badge badge-slate" style="margin-left:0.25rem;"><i class="fa-regular fa-clock mr-1"></i> ค้างชำระ</span>';
       }
       typeCellContent = `<span class="badge badge-amber"><i class="fa-regular fa-clock mr-1"></i> จ่ายล่วงหน้า</span> ${statusText}`;
+    } else if (isTransferOut || isTransferIn) {
+      typeCellContent = '<span class="badge badge-indigo" style="background-color: var(--primary-light); color: var(--primary); border: 1px solid rgba(79,70,229,0.15);"><i class="fa-solid fa-money-bill-transfer mr-1"></i> ย้ายเงิน</span>';
     } else {
       typeCellContent = '<span class="badge badge-rose"><i class="fa-solid fa-circle-chevron-up mr-1"></i> รายจ่าย</span>';
     }
@@ -537,6 +594,31 @@ function refreshTransactionsTable() {
         </button>`;
     }
 
+    let detailHTML = `<div class="table-text-main">${t.notes || '-'}</div>`;
+    let accountCellHTML = `<div class="table-text-main">${acc ? acc.name : 'ไม่ระบุ/ถูกลบ'}</div>
+                           <div class="table-text-sub">${acc && acc.type === 'bank' ? `${acc.bankName}` : '-'}</div>`;
+
+    if (isTransferOut || isTransferIn) {
+      const otherTx = (Array.isArray(State.transactions) ? State.transactions : []).find(tx => tx.id === t.transferTxId);
+      let fromAccId = isTransferOut ? t.accountId : (otherTx ? otherTx.accountId : '');
+      let toAccId = isTransferIn ? t.accountId : (otherTx ? otherTx.accountId : '');
+      
+      const fromAcc = State.accounts.find(a => a.id === fromAccId);
+      const toAcc = State.accounts.find(a => a.id === toAccId);
+      const fromName = fromAcc ? fromAcc.name : 'ไม่ระบุ';
+      const toName = toAcc ? toAcc.name : 'ไม่ระบุ';
+      
+      detailHTML = `<div class="table-text-main" style="color: var(--primary); font-weight: 600;">
+                      <i class="fa-solid fa-right-long mr-1"></i> ย้ายเงิน: ${fromName} ➔ ${toName}
+                    </div>
+                    <div class="table-text-sub" style="font-style: italic;">
+                      ${t.notes ? `หมายเหตุ: ${t.notes}` : 'ไม่มีหมายเหตุเพิ่มเติม'}
+                    </div>`;
+                    
+      accountCellHTML = `<div class="table-text-main">${fromName} ➔ ${toName}</div>
+                         <div class="table-text-sub">ย้ายเงินระหว่างบัญชี</div>`;
+    }
+
     tbody.innerHTML += `
       <tr class="${rowUrgencyClass}">
         <td class="table-text-main">${formatDateThShort(t.date)}</td>
@@ -545,17 +627,16 @@ function refreshTransactionsTable() {
         </td>
         <td class="table-text-main">${t.category}</td>
         <td>
-          <div class="table-text-main">${t.notes || '-'}</div>
+          ${detailHTML}
           ${t.type === 'future' ? '<div class="table-text-sub text-amber-hover"><i class="fa-regular fa-hourglass-half"></i> ตั้งจ่ายล่วงหน้า</div>' : ''}
         </td>
         <td>
           <span class="badge badge-slate">${t.paymentMethod === 'Cash' ? 'เงินสด' : 'เงินโอน'}</span>
         </td>
         <td>
-          <div class="table-text-main">${acc ? acc.name : 'ไม่ระบุ/ถูกลบ'}</div>
-          <div class="table-text-sub">${acc && acc.type === 'bank' ? `${acc.bankName}` : '-'}</div>
+          ${accountCellHTML}
         </td>
-        <td class="${amountClass} text-right text-base">${amountPrefix}${formatCurrencyNumber(t.amount)}</td>
+        <td class="${amountClass} text-right text-base" ${amountStyle}>${amountPrefix}${formatCurrencyNumber(t.amount)}</td>
         <td class="text-center">${attachmentBtn}</td>
         <td class="text-center">
           <div style="display:flex; justify-content:center; gap:0.25rem; align-items:center;">
@@ -1354,35 +1435,56 @@ function openEditTransactionModal(id) {
   // Reset form first
   document.getElementById('transaction-form').reset();
   
+  const isTransfer = t.type === 'transfer_out' || t.type === 'transfer_in';
+  const formType = isTransfer ? 'transfer' : t.type;
+
   // Load data
   document.getElementById('tx-id').value = t.id;
-  document.getElementById('tx-type').value = t.type;
+  document.getElementById('tx-type').value = formType;
   document.getElementById('tx-date').value = t.date;
   
   // Update active type button state
   const typeButtons = document.querySelectorAll('.transaction-type-blocks .type-block-btn');
   typeButtons.forEach(btn => {
-    if (btn.getAttribute('data-type') === t.type) {
+    if (btn.getAttribute('data-type') === formType) {
       btn.classList.add('active');
     } else {
       btn.classList.remove('active');
     }
   });
-  handleTypeChange(t.type);
+  handleTypeChange(formType);
   
-  if (t.type === 'future') {
+  if (formType === 'future') {
     document.getElementById('tx-status').value = t.status || 'pending';
   }
 
-  // Populate category based on loaded type and set value
-  updateTransactionFormCategories();
-  document.getElementById('tx-category').value = t.category;
-  
   document.getElementById('tx-amount').value = t.amount;
-  document.getElementById('tx-payment-method').value = t.paymentMethod;
-  
-  updateTransactionFormAccounts();
-  document.getElementById('tx-account').value = t.accountId;
+
+  if (isTransfer) {
+    const otherTx = (Array.isArray(State.transactions) ? State.transactions : []).find(tx => tx.id === t.transferTxId);
+    populateTransferAccountSelects();
+    
+    if (t.type === 'transfer_out') {
+      document.getElementById('tx-account').value = t.accountId;
+      if (otherTx) {
+        document.getElementById('tx-to-account').value = otherTx.accountId;
+      }
+    } else {
+      if (otherTx) {
+        document.getElementById('tx-account').value = otherTx.accountId;
+      }
+      document.getElementById('tx-to-account').value = t.accountId;
+    }
+  } else {
+    // Populate category based on loaded type and set value
+    updateTransactionFormCategories();
+    document.getElementById('tx-category').value = t.category;
+    
+    document.getElementById('tx-payment-method').value = t.paymentMethod;
+    
+    updateTransactionFormAccounts();
+    document.getElementById('tx-account').value = t.accountId;
+  }
 
   document.getElementById('tx-notes').value = t.notes || '';
   document.getElementById('tx-slip-url').value = t.slipUrl || '';
@@ -1610,6 +1712,7 @@ async function handleTransactionSubmit(e) {
   
   // If payment method is Cash, force accountId to cash
   const accountId = paymentMethod === 'Cash' ? 'acc-cash' : document.getElementById('tx-account').value;
+  const toAccountId = document.getElementById('tx-to-account').value;
   
   const notes = document.getElementById('tx-notes').value;
 
@@ -1632,10 +1735,11 @@ async function handleTransactionSubmit(e) {
   const txData = {
     date,
     type,
-    category,
+    category: type === 'transfer' ? 'โอนย้ายเงิน' : category,
     amount,
-    paymentMethod,
-    accountId,
+    paymentMethod: type === 'transfer' ? 'Transfer' : paymentMethod,
+    accountId: type === 'transfer' ? document.getElementById('tx-account').value : accountId,
+    toAccountId: type === 'transfer' ? toAccountId : undefined,
     notes,
     slipUrl: slipUrl || null,
     status: type === 'future' ? document.getElementById('tx-status').value : undefined
@@ -1877,9 +1981,28 @@ function formatDateThShort(dateStr) {
 }
 
 function handleTypeChange(type) {
-  updateTransactionFormCategories();
   const statusGroup = document.getElementById('group-tx-status');
+  const catGroup = document.getElementById('group-tx-category');
+  const methodGroup = document.getElementById('group-tx-payment-method');
+  const toAccGroup = document.getElementById('group-tx-to-account');
+  const accLabel = document.querySelector('#group-tx-account label');
+
   if (statusGroup) statusGroup.style.display = type === 'future' ? 'flex' : 'none';
+
+  if (type === 'transfer') {
+    if (catGroup) catGroup.style.display = 'none';
+    if (methodGroup) methodGroup.style.display = 'none';
+    if (toAccGroup) toAccGroup.style.display = 'flex';
+    if (accLabel) accLabel.innerHTML = 'จากบัญชี (ต้นทาง) <span class="text-rose">*</span>';
+    populateTransferAccountSelects();
+  } else {
+    if (catGroup) catGroup.style.display = 'flex';
+    if (methodGroup) methodGroup.style.display = 'flex';
+    if (toAccGroup) toAccGroup.style.display = 'none';
+    if (accLabel) accLabel.innerHTML = 'บัญชีการเงินที่ผูก <span class="text-rose">*</span>';
+    updateTransactionFormCategories();
+    updateTransactionFormAccounts();
+  }
 }
 
 // ─── TRASH PAGE ───────────────────────────────────────────────────────────────

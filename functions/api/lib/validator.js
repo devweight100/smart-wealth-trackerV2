@@ -17,22 +17,41 @@ export function validateTransaction(body) {
   if (!body.date || !/^\d{4}-\d{2}-\d{2}$/.test(body.date)) {
     errors.push({ field: 'date', message: 'วันที่ไม่ถูกต้อง (ต้องเป็น YYYY-MM-DD)' });
   }
-  if (!['income', 'expense', 'future'].includes(body.type)) {
-    errors.push({ field: 'type', message: 'ประเภทต้องเป็น income, expense หรือ future' });
+  if (!['income', 'expense', 'future', 'transfer', 'transfer_out', 'transfer_in'].includes(body.type)) {
+    errors.push({ field: 'type', message: 'ประเภทต้องเป็น income, expense, future หรือ transfer' });
   }
-  if (!body.category || typeof body.category !== 'string' || body.category.trim().length === 0) {
-    errors.push({ field: 'category', message: 'กรุณาระบุหมวดหมู่' });
+  
+  const isTransfer = ['transfer', 'transfer_out', 'transfer_in'].includes(body.type);
+  if (!isTransfer) {
+    if (!body.category || typeof body.category !== 'string' || body.category.trim().length === 0) {
+      errors.push({ field: 'category', message: 'กรุณาระบุหมวดหมู่' });
+    }
   }
+  
   const amount = Number(body.amount);
   if (isNaN(amount) || amount < 0) {
     errors.push({ field: 'amount', message: 'จำนวนเงินต้องเป็นตัวเลขที่ >= 0' });
   }
-  if (!['Cash', 'Transfer'].includes(body.paymentMethod)) {
-    errors.push({ field: 'paymentMethod', message: 'วิธีชำระต้องเป็น Cash หรือ Transfer' });
+  
+  if (!isTransfer) {
+    if (!body.paymentMethod || !['Cash', 'Transfer'].includes(body.paymentMethod)) {
+      errors.push({ field: 'paymentMethod', message: 'วิธีชำระต้องเป็น Cash หรือ Transfer' });
+    }
   }
+  
   if (!body.accountId || typeof body.accountId !== 'string') {
     errors.push({ field: 'accountId', message: 'กรุณาเลือกบัญชี' });
   }
+  
+  if (isTransfer) {
+    if (body.type === 'transfer' && (!body.toAccountId || typeof body.toAccountId !== 'string')) {
+      errors.push({ field: 'toAccountId', message: 'กรุณาเลือกบัญชีปลายทาง' });
+    }
+    if (body.type === 'transfer' && body.accountId === body.toAccountId) {
+      errors.push({ field: 'toAccountId', message: 'บัญชีต้นทางและปลายทางต้องไม่เป็นบัญชีเดียวกัน' });
+    }
+  }
+
   if (body.type === 'future' && body.status && !['pending', 'paid'].includes(body.status)) {
     errors.push({ field: 'status', message: 'สถานะต้องเป็น pending หรือ paid' });
   }

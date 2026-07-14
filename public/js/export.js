@@ -71,7 +71,9 @@ const ExcelExport = {
         return {
           'รหัสธุรกรรม': t.id,
           'วันที่ทำรายการ': t.date,
-          'ประเภท': t.type === 'income' ? 'รายรับ (+)' : 'รายจ่าย (-)',
+          'ประเภท': t.type === 'income' ? 'รายรับ (+)' : 
+                   (t.type === 'transfer_out' ? 'ย้ายเงิน (โอนออก)' : 
+                   (t.type === 'transfer_in' ? 'ย้ายเงิน (โอนเข้า)' : 'รายจ่าย (-)')),
           'หมวดหมู่': t.category,
           'จำนวนเงิน (บาท)': Number(t.amount || 0),
           'วิธีชำระเงิน': t.paymentMethod === 'Cash' ? 'เงินสด' : 'เงินโอน',

@@ -80,8 +80,8 @@ export async function calculateBalances(db) {
     for (const tx of txs) {
       if (tx.account_id !== acc.id) continue;
       const amt = Number(tx.amount || 0);
-      if (tx.type === 'income' && tx.date <= today) balance += amt;
-      else if (tx.type === 'expense' && tx.date <= today) balance -= amt;
+      if ((tx.type === 'income' || tx.type === 'transfer_in') && tx.date <= today) balance += amt;
+      else if ((tx.type === 'expense' || tx.type === 'transfer_out') && tx.date <= today) balance -= amt;
       else if (tx.type === 'future' && tx.status === 'paid') balance -= amt;
     }
     return { ...toAccountAPI(acc), balance };
@@ -179,14 +179,15 @@ export async function createTransaction(db, data) {
   const now = nowISO();
   await db.prepare(
     `INSERT INTO transactions
-       (id, date, type, category_name, category_id, amount, payment_method, account_id, notes, slip_url, status, created_by, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       (id, date, type, category_name, category_id, amount, payment_method, account_id, notes, slip_url, status, transfer_tx_id, created_by, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     data.id, data.date, data.type,
     data.category, data.categoryId || null,
     data.amount, data.paymentMethod, data.accountId,
     data.notes || '', data.slipUrl || null,
     data.type === 'future' ? (data.status || 'pending') : null,
+    data.transferTxId || null,
     data.createdBy || null, now, now
   ).run();
   return getTransactionById(db, data.id);
@@ -198,7 +199,7 @@ export async function updateTransaction(db, id, data) {
   if (!current) return null;
 
   await db.prepare(
-    `UPDATE transactions SET date=?, type=?, category_name=?, category_id=?, amount=?, payment_method=?, account_id=?, notes=?, slip_url=?, status=?, updated_at=? WHERE id=?`
+    `UPDATE transactions SET date=?, type=?, category_name=?, category_id=?, amount=?, payment_method=?, account_id=?, notes=?, slip_url=?, status=?, transfer_tx_id=?, updated_at=? WHERE id=?`
   ).bind(
     data.date          ?? current.date,
     data.type          ?? current.type,
@@ -210,6 +211,7 @@ export async function updateTransaction(db, id, data) {
     data.notes         !== undefined ? data.notes     : current.notes,
     data.slipUrl       !== undefined ? data.slipUrl   : current.slip_url,
     data.status        !== undefined ? data.status    : current.status,
+    data.transferTxId  !== undefined ? data.transferTxId : current.transfer_tx_id,
     now, id
   ).run();
   return getTransactionById(db, id);
@@ -384,6 +386,7 @@ function toTransactionAPI(row) {
     notes         : row.notes || '',
     slipUrl       : row.slip_url || null,
     status        : row.status || null,
+    transferTxId  : row.transfer_tx_id || null,
     createdAt     : row.created_at,
     deletedAt     : row.deleted_at || null,
   };

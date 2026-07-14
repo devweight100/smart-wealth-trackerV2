@@ -116,11 +116,11 @@ function recalculateBalances() {
     currentTransactions.forEach(tx => {
       if (tx.accountId === account.id) {
         const txAmount = Number(tx.amount || 0);
-        if (tx.type === 'income') {
+        if (tx.type === 'income' || tx.type === 'transfer_in') {
           if (tx.date <= todayStr) {
             balance += txAmount;
           }
-        } else if (tx.type === 'expense') {
+        } else if (tx.type === 'expense' || tx.type === 'transfer_out') {
           if (tx.date <= todayStr) {
             balance -= txAmount;
           }
@@ -371,6 +371,44 @@ app.get('/api/transactions', (req, res) => {
 app.post('/api/transactions', (req, res) => {
   const currentTransactions = readJSONFile(TRANSACTIONS_FILE, []);
   
+  if (req.body.type === 'transfer') {
+    const id1 = 'tx-' + Date.now() + '-out-' + Math.round(Math.random() * 1000);
+    const id2 = 'tx-' + Date.now() + '-in-' + Math.round(Math.random() * 1000);
+    const notesText = req.body.notes || '';
+
+    const txOut = {
+      id: id1,
+      date: req.body.date,
+      type: 'transfer_out',
+      category: 'โอนย้ายเงิน',
+      amount: Number(req.body.amount || 0),
+      paymentMethod: 'Transfer',
+      accountId: req.body.accountId,
+      notes: notesText,
+      slipUrl: req.body.slipUrl || null,
+      transferTxId: id2
+    };
+
+    const txIn = {
+      id: id2,
+      date: req.body.date,
+      type: 'transfer_in',
+      category: 'โอนย้ายเงิน',
+      amount: Number(req.body.amount || 0),
+      paymentMethod: 'Transfer',
+      accountId: req.body.toAccountId,
+      notes: notesText,
+      slipUrl: req.body.slipUrl || null,
+      transferTxId: id1
+    };
+
+    currentTransactions.push(txOut);
+    currentTransactions.push(txIn);
+    writeJSONFile(TRANSACTIONS_FILE, currentTransactions);
+    recalculateBalances();
+    return res.status(201).json(txOut);
+  }
+
   const tx = {
     id: 'tx-' + Date.now() + '-' + Math.round(Math.random() * 1000),
     date: req.body.date, // YYYY-MM-DD
@@ -398,6 +436,107 @@ app.put('/api/transactions/:id', (req, res) => {
 
   if (index === -1) {
     return res.status(404).json({ error: 'Transaction not found' });
+  }
+
+  const tx = currentTransactions[index];
+  if (tx.transferTxId && req.body.type !== 'transfer') {
+    // Delete peer
+    let updatedTransactions = currentTransactions.filter(t => t.id !== tx.transferTxId);
+    const txIndex = updatedTransactions.findIndex(t => t.id === req.params.id);
+    updatedTransactions[txIndex] = {
+      ...updatedTransactions[txIndex],
+      date: req.body.date || tx.date,
+      type: req.body.type || tx.type,
+      category: req.body.category || tx.category,
+      amount: Number(req.body.amount !== undefined ? req.body.amount : tx.amount),
+      paymentMethod: req.body.paymentMethod || tx.paymentMethod,
+      accountId: req.body.accountId || tx.accountId,
+      notes: req.body.notes !== undefined ? req.body.notes : tx.notes,
+      slipUrl: req.body.slipUrl !== undefined ? req.body.slipUrl : tx.slipUrl,
+      status: req.body.status !== undefined ? req.body.status : tx.status,
+      transferTxId: undefined
+    };
+    writeJSONFile(TRANSACTIONS_FILE, updatedTransactions);
+    recalculateBalances();
+    return res.json(updatedTransactions[txIndex]);
+  }
+
+  if (tx.transferTxId) {
+    const otherIndex = currentTransactions.findIndex(t => t.id === tx.transferTxId);
+    let txOutIndex = tx.type === 'transfer_out' ? index : otherIndex;
+    let txInIndex = tx.type === 'transfer_in' ? index : otherIndex;
+
+    const amount = req.body.amount !== undefined ? Number(req.body.amount) : tx.amount;
+    const date = req.body.date || tx.date;
+    const notes = req.body.notes !== undefined ? req.body.notes : tx.notes;
+    const slipUrl = req.body.slipUrl !== undefined ? req.body.slipUrl : tx.slipUrl;
+
+    let sourceAccId = req.body.accountId || (tx.type === 'transfer_out' ? tx.accountId : (currentTransactions[otherIndex] ? currentTransactions[otherIndex].accountId : ''));
+    let destAccId = req.body.toAccountId || (tx.type === 'transfer_in' ? tx.accountId : (currentTransactions[otherIndex] ? currentTransactions[otherIndex].accountId : ''));
+
+    if (txOutIndex !== -1) {
+      currentTransactions[txOutIndex] = {
+        ...currentTransactions[txOutIndex],
+        date,
+        amount,
+        notes,
+        slipUrl,
+        accountId: sourceAccId
+      };
+    }
+    if (txInIndex !== -1) {
+      currentTransactions[txInIndex] = {
+        ...currentTransactions[txInIndex],
+        date,
+        amount,
+        notes,
+        slipUrl,
+        accountId: destAccId
+      };
+    }
+
+    writeJSONFile(TRANSACTIONS_FILE, currentTransactions);
+    recalculateBalances();
+    return res.json(currentTransactions[index]);
+  }
+
+  if (req.body.type === 'transfer') {
+    const id2 = 'tx-' + Date.now() + '-in-' + Math.round(Math.random() * 1000);
+    const amount = Number(req.body.amount);
+    const date = req.body.date;
+    const notesText = req.body.notes || '';
+
+    currentTransactions[index] = {
+      ...currentTransactions[index],
+      date,
+      type: 'transfer_out',
+      category: 'โอนย้ายเงิน',
+      amount,
+      paymentMethod: 'Transfer',
+      accountId: req.body.accountId,
+      notes: notesText,
+      slipUrl: req.body.slipUrl || null,
+      transferTxId: id2,
+      status: undefined
+    };
+
+    const txIn = {
+      id: id2,
+      date,
+      type: 'transfer_in',
+      category: 'โอนย้ายเงิน',
+      amount,
+      paymentMethod: 'Transfer',
+      accountId: req.body.toAccountId,
+      notes: notesText,
+      slipUrl: req.body.slipUrl || null,
+      transferTxId: req.params.id
+    };
+
+    currentTransactions.push(txIn);
+    writeJSONFile(TRANSACTIONS_FILE, currentTransactions);
+    recalculateBalances();
+    return res.json(currentTransactions[index]);
   }
 
   const updated = {
@@ -429,22 +568,26 @@ app.delete('/api/transactions/:id', (req, res) => {
     return res.status(404).json({ error: 'Transaction not found' });
   }
 
-  // If there's an attached file, we can optionally delete it, but typically we can keep it or delete it.
-  // To keep it simple, we'll just remove the database entry. If you want, we could unlink it.
-  if (txToDelete.slipUrl) {
-    const filePath = path.join(__dirname, txToDelete.slipUrl);
-    if (fs.existsSync(filePath)) {
-      try {
-        fs.unlinkSync(filePath);
-      } catch (err) {
-        console.error('Error deleting attachment file:', err);
-      }
+  if (txToDelete.transferTxId) {
+    const otherTx = currentTransactions.find(t => t.id === txToDelete.transferTxId);
+    if (txToDelete.slipUrl) {
+      const filePath = path.join(__dirname, txToDelete.slipUrl);
+      if (fs.existsSync(filePath)) { try { fs.unlinkSync(filePath); } catch (err) {} }
     }
+    if (otherTx && otherTx.slipUrl && otherTx.slipUrl !== txToDelete.slipUrl) {
+      const filePath = path.join(__dirname, otherTx.slipUrl);
+      if (fs.existsSync(filePath)) { try { fs.unlinkSync(filePath); } catch (err) {} }
+    }
+    currentTransactions = currentTransactions.filter(t => t.id !== req.params.id && t.id !== txToDelete.transferTxId);
+  } else {
+    if (txToDelete.slipUrl) {
+      const filePath = path.join(__dirname, txToDelete.slipUrl);
+      if (fs.existsSync(filePath)) { try { fs.unlinkSync(filePath); } catch (err) {} }
+    }
+    currentTransactions = currentTransactions.filter(t => t.id !== req.params.id);
   }
 
-  currentTransactions = currentTransactions.filter(t => t.id !== req.params.id);
   writeJSONFile(TRANSACTIONS_FILE, currentTransactions);
-  
   recalculateBalances();
 
   res.json({ message: 'Transaction deleted successfully' });

@@ -139,7 +139,7 @@ export async function onRequest(context) {
             id TEXT PRIMARY KEY, date TEXT NOT NULL, type TEXT NOT NULL,
             category_name TEXT, category_id TEXT, amount REAL NOT NULL,
             payment_method TEXT, account_id TEXT, notes TEXT, slip_url TEXT,
-            status TEXT DEFAULT 'paid', created_by TEXT,
+            status TEXT DEFAULT 'paid', transfer_tx_id TEXT, created_by TEXT,
             created_at TEXT, updated_at TEXT, deleted_at TEXT
           );
           CREATE TABLE IF NOT EXISTS settings (
@@ -169,6 +169,7 @@ export async function onRequest(context) {
           `ALTER TABLE users ADD COLUMN failed_attempts INTEGER NOT NULL DEFAULT 0`,
           `ALTER TABLE users ADD COLUMN locked_until TEXT`,
           `ALTER TABLE users ADD COLUMN last_login_at TEXT`,
+          `ALTER TABLE transactions ADD COLUMN transfer_tx_id TEXT`,
         ];
         for (const m of migrations) {
           try { await db.prepare(m).run(); } catch (_) { /* column already exists = ok */ }
@@ -337,6 +338,43 @@ export async function onRequest(context) {
         const errors = validateTransaction(body);
         if (errors.length) return json({ errors }, 422);
 
+        if (body.type === 'transfer') {
+          const id1 = `tx-${Date.now()}-out-${Math.round(Math.random() * 1000)}`;
+          const id2 = `tx-${Date.now()}-in-${Math.round(Math.random() * 1000)}`;
+          const notesText = body.notes ? sanitize(body.notes, 500) : '';
+
+          const txOut = await createTransaction(db, {
+            id: id1,
+            date: body.date,
+            type: 'transfer_out',
+            category: 'โอนย้ายเงิน',
+            amount: Number(body.amount),
+            paymentMethod: 'Transfer',
+            accountId: body.accountId,
+            notes: notesText,
+            slipUrl: body.slipUrl || null,
+            transferTxId: id2,
+            createdBy: session.userId,
+          });
+
+          await createTransaction(db, {
+            id: id2,
+            date: body.date,
+            type: 'transfer_in',
+            category: 'โอนย้ายเงิน',
+            amount: Number(body.amount),
+            paymentMethod: 'Transfer',
+            accountId: body.toAccountId,
+            notes: notesText,
+            slipUrl: body.slipUrl || null,
+            transferTxId: id1,
+            createdBy: session.userId,
+          });
+
+          await writeAudit(db, { ...session, action: 'create', resource: 'transaction', resourceId: id1, newData: txOut, ...info });
+          return json(txOut, 201);
+        }
+
         const id = `tx-${Date.now()}-${Math.round(Math.random() * 1000)}`;
         const tx = await createTransaction(db, {
           id,
@@ -362,7 +400,13 @@ export async function onRequest(context) {
       // Special: restore from trash
       if (path.endsWith('/restore') && method === 'POST') {
         const txId = path.split('/')[2];
-        await restoreTransaction(db, txId);
+        const tx = await getTransactionById(db, txId);
+        if (tx && tx.transferTxId) {
+          await restoreTransaction(db, tx.id);
+          await restoreTransaction(db, tx.transferTxId);
+        } else {
+          await restoreTransaction(db, txId);
+        }
         await writeAudit(db, { ...session, action: 'restore', resource: 'transaction', resourceId: txId, ...info });
         return json({ message: 'กู้คืนรายการสำเร็จ' });
       }
@@ -376,6 +420,107 @@ export async function onRequest(context) {
         const body    = await request.json();
         const oldData = await getTransactionById(db, id);
         if (!oldData) return err('ไม่พบรายการ', 404);
+
+        if (oldData.transferTxId && body.type !== 'transfer') {
+          await softDeleteTransaction(db, oldData.transferTxId);
+          const updated = await updateTransaction(db, id, {
+            date         : body.date,
+            type         : body.type,
+            category     : body.category ? sanitize(body.category, 200) : undefined,
+            amount       : body.amount   !== undefined ? Number(body.amount) : undefined,
+            paymentMethod: body.paymentMethod,
+            accountId    : body.accountId,
+            notes        : body.notes    !== undefined ? sanitize(body.notes, 500) : undefined,
+            slipUrl      : body.slipUrl  !== undefined ? body.slipUrl : undefined,
+            status       : body.status   !== undefined ? body.status  : undefined,
+            transferTxId : null
+          });
+          await writeAudit(db, { ...session, action: 'update', resource: 'transaction', resourceId: id, oldData, newData: updated, ...info });
+          return json(updated);
+        }
+
+        if (oldData.transferTxId) {
+          const otherData = await getTransactionById(db, oldData.transferTxId);
+          let txOutId, txInId;
+          if (oldData.type === 'transfer_out') {
+            txOutId = oldData.id;
+            txInId = oldData.transferTxId;
+          } else {
+            txOutId = oldData.transferTxId;
+            txInId = oldData.id;
+          }
+
+          const amount = body.amount !== undefined ? Number(body.amount) : oldData.amount;
+          const date = body.date || oldData.date;
+          const notesText = body.notes !== undefined ? sanitize(body.notes, 500) : oldData.notes;
+          const slipUrl = body.slipUrl !== undefined ? body.slipUrl : oldData.slipUrl;
+
+          let sourceAccId = body.accountId || (oldData.type === 'transfer_out' ? oldData.accountId : otherData?.accountId);
+          let destAccId = body.toAccountId || (oldData.type === 'transfer_in' ? oldData.accountId : otherData?.accountId);
+
+          const updatedOut = await updateTransaction(db, txOutId, {
+            date,
+            type: 'transfer_out',
+            category: 'โอนย้ายเงิน',
+            amount,
+            paymentMethod: 'Transfer',
+            accountId: sourceAccId,
+            notes: notesText,
+            slipUrl,
+          });
+
+          await updateTransaction(db, txInId, {
+            date,
+            type: 'transfer_in',
+            category: 'โอนย้ายเงิน',
+            amount,
+            paymentMethod: 'Transfer',
+            accountId: destAccId,
+            notes: notesText,
+            slipUrl,
+          });
+
+          await writeAudit(db, { ...session, action: 'update', resource: 'transaction', resourceId: id, oldData, newData: updatedOut, ...info });
+          return json(updatedOut);
+        }
+
+        if (body.type === 'transfer') {
+          const id2 = `tx-${Date.now()}-in-${Math.round(Math.random() * 1000)}`;
+          const amount = Number(body.amount);
+          const date = body.date;
+          const notesText = body.notes ? sanitize(body.notes, 500) : '';
+
+          const updatedOut = await updateTransaction(db, id, {
+            date,
+            type: 'transfer_out',
+            category: 'โอนย้ายเงิน',
+            amount,
+            paymentMethod: 'Transfer',
+            accountId: body.accountId,
+            notes: notesText,
+            slipUrl: body.slipUrl || null,
+            transferTxId: id2,
+            status: null
+          });
+
+          await createTransaction(db, {
+            id: id2,
+            date,
+            type: 'transfer_in',
+            category: 'โอนย้ายเงิน',
+            amount,
+            paymentMethod: 'Transfer',
+            accountId: body.toAccountId,
+            notes: notesText,
+            slipUrl: body.slipUrl || null,
+            transferTxId: id,
+            createdBy: session.userId,
+          });
+
+          await writeAudit(db, { ...session, action: 'update', resource: 'transaction', resourceId: id, oldData, newData: updatedOut, ...info });
+          return json(updatedOut);
+        }
+
         const updated = await updateTransaction(db, id, {
           date         : body.date,
           type         : body.type,
@@ -393,7 +538,12 @@ export async function onRequest(context) {
       if (method === 'DELETE') {
         const tx = await getTransactionById(db, id);
         if (!tx) return err('ไม่พบรายการ', 404);
-        await softDeleteTransaction(db, id);
+        if (tx.transferTxId) {
+          await softDeleteTransaction(db, tx.id);
+          await softDeleteTransaction(db, tx.transferTxId);
+        } else {
+          await softDeleteTransaction(db, id);
+        }
         await writeAudit(db, { ...session, action: 'delete', resource: 'transaction', resourceId: id, oldData: tx, ...info });
         return json({ message: 'ลบรายการสำเร็จ (สามารถกู้คืนได้จาก Trash)' });
       }
@@ -458,15 +608,24 @@ export async function onRequest(context) {
       const type  = parts[2];        // 'transaction' | 'account'
       const id    = parts[3];
       if (type === 'transaction') {
-        const tx = await db.prepare(`SELECT slip_url FROM transactions WHERE id = ? AND deleted_at IS NOT NULL`).bind(id).first();
-        if (tx && tx.slip_url) {
-          try {
-            await deleteFile(env, tx.slip_url);
-          } catch (fileErr) {
-            console.error('[Trash] Clean attachment error:', fileErr.message);
+        const tx = await getTransactionById(db, id);
+        if (tx && tx.transferTxId) {
+          if (tx.slipUrl) {
+            try { await deleteFile(env, tx.slipUrl); } catch (fileErr) {}
           }
+          const otherTx = await getTransactionById(db, tx.transferTxId);
+          if (otherTx && otherTx.slipUrl && otherTx.slipUrl !== tx.slipUrl) {
+            try { await deleteFile(env, otherTx.slipUrl); } catch (fileErr) {}
+          }
+          await db.prepare(`DELETE FROM transactions WHERE id = ?`).bind(id).run();
+          await db.prepare(`DELETE FROM transactions WHERE id = ?`).bind(tx.transferTxId).run();
+        } else {
+          const txSingle = await db.prepare(`SELECT slip_url FROM transactions WHERE id = ? AND deleted_at IS NOT NULL`).bind(id).first();
+          if (txSingle && txSingle.slip_url) {
+            try { await deleteFile(env, txSingle.slip_url); } catch (fileErr) {}
+          }
+          await db.prepare(`DELETE FROM transactions WHERE id = ? AND deleted_at IS NOT NULL`).bind(id).run();
         }
-        await db.prepare(`DELETE FROM transactions WHERE id = ? AND deleted_at IS NOT NULL`).bind(id).run();
       } else if (type === 'account') {
         await db.prepare(`DELETE FROM accounts WHERE id = ? AND deleted_at IS NOT NULL AND id != 'acc-cash'`).bind(id).run();
       }
@@ -479,7 +638,13 @@ export async function onRequest(context) {
       const id    = parts[3];
       const now   = nowISO();
       if (type === 'transaction') {
-        await db.prepare(`UPDATE transactions SET deleted_at=NULL, updated_at=? WHERE id=?`).bind(now, id).run();
+        const tx = await getTransactionById(db, id);
+        if (tx && tx.transferTxId) {
+          await db.prepare(`UPDATE transactions SET deleted_at=NULL, updated_at=? WHERE id=?`).bind(now, id).run();
+          await db.prepare(`UPDATE transactions SET deleted_at=NULL, updated_at=? WHERE id=?`).bind(now, tx.transferTxId).run();
+        } else {
+          await db.prepare(`UPDATE transactions SET deleted_at=NULL, updated_at=? WHERE id=?`).bind(now, id).run();
+        }
       } else if (type === 'account') {
         await db.prepare(`UPDATE accounts SET deleted_at=NULL, updated_at=? WHERE id=?`).bind(now, id).run();
       }

@@ -679,6 +679,10 @@
                 <i class="fa-regular fa-clock"></i>
                 <span>รายจ่ายล่วงหน้า</span>
               </button>
+              <button type="button" class="type-block-btn type-transfer" data-type="transfer">
+                <i class="fa-solid fa-money-bill-transfer"></i>
+                <span>ย้ายเงิน</span>
+              </button>
             </div>
             <input type="hidden" id="tx-type" value="expense">
           </div>
@@ -699,7 +703,7 @@
           </div>
 
           <div class="form-row-2">
-            <div class="form-group">
+            <div class="form-group" id="group-tx-category">
               <label for="tx-category" class="required">หมวดหมู่</label>
               <select id="tx-category" required>
                 <!-- Dynamic Categories Options -->
@@ -716,7 +720,7 @@
           </div>
 
           <div class="form-row-2">
-            <div class="form-group">
+            <div class="form-group" id="group-tx-payment-method">
               <label for="tx-payment-method" class="required">วิธีการชำระ/รับเงิน</label>
               <select id="tx-payment-method" required>
                 <option value="Transfer">เงินโอนผ่านธนาคาร</option>
@@ -727,6 +731,13 @@
             <div class="form-group" id="group-tx-account">
               <label for="tx-account" class="required">บัญชีการเงินที่ผูก</label>
               <select id="tx-account" required>
+                <!-- Dynamic Bank Accounts -->
+              </select>
+            </div>
+
+            <div class="form-group" id="group-tx-to-account" style="display: none;">
+              <label for="tx-to-account" class="required">ไปยังบัญชี (ปลายทาง)</label>
+              <select id="tx-to-account">
                 <!-- Dynamic Bank Accounts -->
               </select>
             </div>

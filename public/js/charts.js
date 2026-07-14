@@ -301,9 +301,9 @@ const Charts = {
     const beforeTx = sortedTx.filter(t => t.date < firstDate);
     beforeTx.forEach(t => {
       const amt = Number(t.amount || 0);
-      if (t.type === 'income') {
+      if (t.type === 'income' || t.type === 'transfer_in') {
         startingBalance += amt;
-      } else if (t.type === 'expense' || t.type === 'future') {
+      } else if (t.type === 'expense' || t.type === 'future' || t.type === 'transfer_out') {
         startingBalance -= amt;
       }
     });
@@ -326,9 +326,9 @@ const Charts = {
       const dayTxList = windowTxMap[date] || [];
       dayTxList.forEach(t => {
         const amt = Number(t.amount || 0);
-        if (t.type === 'income') {
+        if (t.type === 'income' || t.type === 'transfer_in') {
           rollingBalance += amt;
-        } else if (t.type === 'expense' || t.type === 'future') {
+        } else if (t.type === 'expense' || t.type === 'future' || t.type === 'transfer_out') {
           rollingBalance -= amt;
         }
       });
