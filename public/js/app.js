@@ -591,17 +591,64 @@ function renderPaginationControls(totalPages) {
   };
   pagDiv.appendChild(prevBtn);
 
-  // Numeric buttons
-  for (let i = 1; i <= totalPages; i++) {
-    const btn = document.createElement('button');
-    btn.className = `pagination-btn ${i === currentPage ? 'active' : ''}`;
-    btn.innerText = i;
-    btn.onclick = () => {
-      State.pagination.page = i;
-      refreshTransactionsTable();
-    };
-    pagDiv.appendChild(btn);
+  // Determine pages range to show
+  const range = [];
+  if (totalPages <= 7) {
+    for (let i = 1; i <= totalPages; i++) {
+      range.push(i);
+    }
+  } else {
+    range.push(1);
+
+    let start = Math.max(2, currentPage - 1);
+    let end = Math.min(totalPages - 1, currentPage + 1);
+
+    if (currentPage <= 4) {
+      end = 5;
+    } else if (currentPage >= totalPages - 3) {
+      start = totalPages - 4;
+    }
+
+    if (start > 2) {
+      range.push('...');
+    }
+
+    for (let i = start; i <= end; i++) {
+      range.push(i);
+    }
+
+    if (end < totalPages - 1) {
+      range.push('...');
+    }
+
+    range.push(totalPages);
   }
+
+  // Numeric buttons & ellipses
+  range.forEach(item => {
+    if (item === '...') {
+      const span = document.createElement('span');
+      span.className = 'pagination-ellipsis';
+      span.innerText = '...';
+      span.style.width = '32px';
+      span.style.height = '32px';
+      span.style.display = 'inline-flex';
+      span.style.alignItems = 'center';
+      span.style.justifyContent = 'center';
+      span.style.color = 'var(--text-helper)';
+      span.style.fontWeight = '600';
+      pagDiv.appendChild(span);
+    } else {
+      const btn = document.createElement('button');
+      btn.className = `pagination-btn ${item === currentPage ? 'active' : ''}`;
+      btn.innerText = item;
+      btn.onclick = () => {
+        State.pagination.page = item;
+        refreshTransactionsTable();
+      };
+      pagDiv.appendChild(btn);
+    }
+  });
 
   // Next btn
   const nextBtn = document.createElement('button');
