@@ -186,8 +186,8 @@ export async function createTransaction(db, data) {
   const now = nowISO();
   await db.prepare(
     `INSERT INTO transactions
-       (id, date, type, category_name, category_id, amount, payment_method, account_id, notes, slip_url, status, transfer_tx_id, created_by, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       (id, date, type, category_name, category_id, amount, payment_method, account_id, notes, slip_url, status, transfer_tx_id, due_date, created_by, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     data.id, data.date, data.type,
     data.category, data.categoryId || null,
@@ -195,6 +195,7 @@ export async function createTransaction(db, data) {
     data.notes || '', data.slipUrl || null,
     data.type === 'future' ? (data.status || 'pending') : null,
     data.transferTxId || null,
+    data.dueDate || null,
     data.createdBy || null, now, now
   ).run();
   return getTransactionById(db, data.id);
@@ -206,7 +207,7 @@ export async function updateTransaction(db, id, data) {
   if (!current) return null;
 
   await db.prepare(
-    `UPDATE transactions SET date=?, type=?, category_name=?, category_id=?, amount=?, payment_method=?, account_id=?, notes=?, slip_url=?, status=?, transfer_tx_id=?, updated_at=? WHERE id=?`
+    `UPDATE transactions SET date=?, type=?, category_name=?, category_id=?, amount=?, payment_method=?, account_id=?, notes=?, slip_url=?, status=?, transfer_tx_id=?, due_date=?, updated_at=? WHERE id=?`
   ).bind(
     data.date          ?? current.date,
     data.type          ?? current.type,
@@ -219,6 +220,7 @@ export async function updateTransaction(db, id, data) {
     data.slipUrl       !== undefined ? data.slipUrl   : current.slip_url,
     data.status        !== undefined ? data.status    : current.status,
     data.transferTxId  !== undefined ? data.transferTxId : current.transfer_tx_id,
+    data.dueDate       !== undefined ? data.dueDate   : current.due_date,
     now, id
   ).run();
   return getTransactionById(db, id);
@@ -394,6 +396,7 @@ function toTransactionAPI(row) {
     slipUrl       : row.slip_url || null,
     status        : row.status || null,
     transferTxId  : row.transfer_tx_id || null,
+    dueDate       : row.due_date || null,
     createdAt     : row.created_at,
     deletedAt     : row.deleted_at || null,
   };

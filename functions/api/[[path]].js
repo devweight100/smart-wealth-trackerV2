@@ -170,6 +170,7 @@ export async function onRequest(context) {
           `ALTER TABLE users ADD COLUMN locked_until TEXT`,
           `ALTER TABLE users ADD COLUMN last_login_at TEXT`,
           `ALTER TABLE transactions ADD COLUMN transfer_tx_id TEXT`,
+          `ALTER TABLE transactions ADD COLUMN due_date TEXT`,
         ];
         for (const m of migrations) {
           try { await db.prepare(m).run(); } catch (_) { /* column already exists = ok */ }
@@ -390,6 +391,7 @@ export async function onRequest(context) {
           notes        : sanitize(body.notes, 500),
           slipUrl      : body.slipUrl || null,
           status       : body.status  || null,
+          dueDate      : body.dueDate || null,
           createdBy    : session.userId,
         });
         await writeAudit(db, { ...session, action: 'create', resource: 'transaction', resourceId: id, newData: tx, ...info });
@@ -436,6 +438,7 @@ export async function onRequest(context) {
             notes        : body.notes    !== undefined ? sanitize(body.notes, 500) : undefined,
             slipUrl      : body.slipUrl  !== undefined ? body.slipUrl : undefined,
             status       : body.status   !== undefined ? body.status  : undefined,
+            dueDate      : body.dueDate  !== undefined ? body.dueDate : undefined,
             transferTxId : null
           });
           await writeAudit(db, { ...session, action: 'update', resource: 'transaction', resourceId: id, oldData, newData: updated, ...info });
@@ -534,6 +537,7 @@ export async function onRequest(context) {
           notes        : body.notes    !== undefined ? sanitize(body.notes, 500) : undefined,
           slipUrl      : body.slipUrl  !== undefined ? body.slipUrl : undefined,
           status       : body.status   !== undefined ? body.status  : undefined,
+          dueDate      : body.dueDate  !== undefined ? body.dueDate : undefined,
         });
         await writeAudit(db, { ...session, action: 'update', resource: 'transaction', resourceId: id, oldData, newData: updated, ...info });
         return json(updated);
