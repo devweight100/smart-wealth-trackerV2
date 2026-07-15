@@ -452,7 +452,21 @@ function refreshTransactionsTable() {
     if (State.filters.type === 'expense' && t.type !== 'expense') return false;
     if (State.filters.type === 'future') {
       if (t.type !== 'future') return false;
-      if (State.filters.futureStatus === 'unpaid' && t.status === 'paid') return false;
+      
+      const dueD = t.dueDate || t.date;
+      
+      if (State.filters.futureStatus !== 'all') {
+        const isPaid = t.status === 'paid';
+        const isOverdue = !isPaid && dueD < todayStr;
+        const isPending = !isPaid && !isOverdue;
+        
+        if (State.filters.futureStatus === 'paid' && !isPaid) return false;
+        if (State.filters.futureStatus === 'pending' && !isPending) return false;
+        if (State.filters.futureStatus === 'overdue' && !isOverdue) return false;
+      }
+
+      if (State.filters.dueDateStart && dueD < State.filters.dueDateStart) return false;
+      if (State.filters.dueDateEnd && dueD > State.filters.dueDateEnd) return false;
     }
     if (State.filters.type === 'transfer' && t.type !== 'transfer_out' && t.type !== 'transfer_in') return false;
 
@@ -625,8 +639,13 @@ function refreshTransactionsTable() {
         </div>`;
     }
     
-    let accountCellHTML = `<div class="table-text-main">${t.accountId === '' || t.accountId === 'unspecified' || !t.accountId ? '<span class="text-slate">ไม่ระบุ</span>' : (acc ? acc.name : 'ถูกลบ')}</div>
-                           <div class="table-text-sub">${acc && acc.type === 'bank' ? `${acc.bankName}` : '-'}</div>`;
+    let accountCellHTML = '';
+    if (t.paymentMethod === 'Unspecified' || t.accountId === 'acc-unspecified') {
+      accountCellHTML = `<span class="text-slate">-</span>`;
+    } else {
+      accountCellHTML = `<div class="table-text-main">${!t.accountId ? '<span class="text-slate">-</span>' : (acc ? acc.name : 'ถูกลบ')}</div>
+                         <div class="table-text-sub">${acc && acc.type === 'bank' ? `${acc.bankName}` : '-'}</div>`;
+    }
 
     if (isTransferOut || isTransferIn) {
       const otherTx = (Array.isArray(State.transactions) ? State.transactions : []).find(tx => tx.id === t.transferTxId);
@@ -661,7 +680,7 @@ function refreshTransactionsTable() {
           ${t.type === 'future' ? '<div class="table-text-sub text-amber-hover"><i class="fa-regular fa-hourglass-half"></i> ตั้งจ่ายล่วงหน้า</div>' : ''}
         </td>
         <td>
-          <span class="badge badge-slate">${t.paymentMethod === 'Cash' ? 'เงินสด' : 'เงินโอน'}</span>
+          <span class="badge badge-slate">${t.paymentMethod === 'Cash' ? 'เงินสด' : (t.paymentMethod === 'Transfer' ? 'เงินโอน' : 'ไม่ระบุ')}</span>
         </td>
         <td>
           ${accountCellHTML}
@@ -1051,6 +1070,25 @@ function setupEventListeners() {
   document.getElementById('filter-type').addEventListener('change', (e) => {
     State.filters.type = e.target.value;
     State.filters.futureStatus = 'all';
+    
+    // Toggle future-specific filters
+    const statusGroup = document.getElementById('filter-status-group');
+    const dueDateGroup = document.getElementById('filter-due-date-group');
+    if (e.target.value === 'future') {
+      statusGroup.style.display = 'block';
+      dueDateGroup.style.display = 'block';
+    } else {
+      statusGroup.style.display = 'none';
+      dueDateGroup.style.display = 'none';
+      // Reset future filters
+      document.getElementById('filter-status').value = 'all';
+      document.getElementById('filter-due-date-start').value = '';
+      document.getElementById('filter-due-date-end').value = '';
+      State.filters.futureStatus = 'all';
+      State.filters.dueDateStart = '';
+      State.filters.dueDateEnd = '';
+    }
+    
     State.pagination.page = 1;
     refreshTransactionsTable();
     refreshReportsTable();
@@ -1084,6 +1122,27 @@ function setupEventListeners() {
     refreshReportsTable();
   });
 
+  document.getElementById('filter-status').addEventListener('change', (e) => {
+    State.filters.futureStatus = e.target.value;
+    State.pagination.page = 1;
+    refreshTransactionsTable();
+    refreshReportsTable();
+  });
+
+  document.getElementById('filter-due-date-start').addEventListener('change', (e) => {
+    State.filters.dueDateStart = e.target.value;
+    State.pagination.page = 1;
+    refreshTransactionsTable();
+    refreshReportsTable();
+  });
+
+  document.getElementById('filter-due-date-end').addEventListener('change', (e) => {
+    State.filters.dueDateEnd = e.target.value;
+    State.pagination.page = 1;
+    refreshTransactionsTable();
+    refreshReportsTable();
+  });
+
   document.getElementById('btn-reset-filters').addEventListener('click', () => {
     document.getElementById('tx-search').value = '';
     document.getElementById('filter-type').value = 'all';
@@ -1091,6 +1150,12 @@ function setupEventListeners() {
     document.getElementById('filter-account').value = 'all';
     document.getElementById('filter-date-start').value = '';
     document.getElementById('filter-date-end').value = '';
+    document.getElementById('filter-status').value = 'all';
+    document.getElementById('filter-due-date-start').value = '';
+    document.getElementById('filter-due-date-end').value = '';
+    
+    document.getElementById('filter-status-group').style.display = 'none';
+    document.getElementById('filter-due-date-group').style.display = 'none';
 
     State.filters = {
       type: 'all',
@@ -1099,7 +1164,9 @@ function setupEventListeners() {
       search: '',
       dateStart: '',
       dateEnd: '',
-      futureStatus: 'all'
+      futureStatus: 'all',
+      dueDateStart: '',
+      dueDateEnd: ''
     };
     State.pagination.page = 1;
     refreshTransactionsTable();

@@ -283,6 +283,25 @@
                 </select>
               </div>
 
+              <div class="filter-item" id="filter-status-group" style="display: none;">
+                <label for="filter-status">สถานะชำระ</label>
+                <select id="filter-status">
+                  <option value="all">ทั้งหมด</option>
+                  <option value="paid">ชำระแล้ว</option>
+                  <option value="pending">ค้างชำระ</option>
+                  <option value="overdue">เกินกำหนด</option>
+                </select>
+              </div>
+
+              <div class="filter-item" id="filter-due-date-group" style="display: none;">
+                <label for="filter-due-date-start">ช่วงวันครบกำหนด</label>
+                <div class="date-range-inputs">
+                  <input type="date" id="filter-due-date-start">
+                  <span>ถึง</span>
+                  <input type="date" id="filter-due-date-end">
+                </div>
+              </div>
+
               <div class="filter-item">
                 <label for="filter-date-start">ช่วงวันที่</label>
                 <div class="date-range-inputs">
