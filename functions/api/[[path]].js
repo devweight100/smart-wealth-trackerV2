@@ -239,7 +239,8 @@ export async function onRequest(context) {
     if (path === '/accounts') {
       if (method === 'GET') {
         const accounts = await calculateBalances(db);
-        return json(accounts);
+        const filtered = accounts.filter(a => a.id !== 'acc-unspecified');
+        return json(filtered);
       }
       if (method === 'POST') {
         const body   = await request.json();
@@ -387,7 +388,7 @@ export async function onRequest(context) {
           category     : sanitize(body.category, 200),
           amount       : Number(body.amount),
           paymentMethod: body.paymentMethod,
-          accountId    : body.accountId,
+          accountId    : body.accountId || 'acc-unspecified',
           notes        : sanitize(body.notes, 500),
           slipUrl      : body.slipUrl || null,
           status       : body.status  || null,
@@ -434,7 +435,7 @@ export async function onRequest(context) {
             category     : body.category ? sanitize(body.category, 200) : undefined,
             amount       : body.amount   !== undefined ? Number(body.amount) : undefined,
             paymentMethod: body.paymentMethod,
-            accountId    : body.accountId,
+            accountId    : body.accountId || 'acc-unspecified',
             notes        : body.notes    !== undefined ? sanitize(body.notes, 500) : undefined,
             slipUrl      : body.slipUrl  !== undefined ? body.slipUrl : undefined,
             status       : body.status   !== undefined ? body.status  : undefined,
@@ -533,7 +534,7 @@ export async function onRequest(context) {
           category     : body.category ? sanitize(body.category, 200) : undefined,
           amount       : body.amount   !== undefined ? Number(body.amount) : undefined,
           paymentMethod: body.paymentMethod,
-          accountId    : body.accountId,
+          accountId    : body.accountId || 'acc-unspecified',
           notes        : body.notes    !== undefined ? sanitize(body.notes, 500) : undefined,
           slipUrl      : body.slipUrl  !== undefined ? body.slipUrl : undefined,
           status       : body.status   !== undefined ? body.status  : undefined,
