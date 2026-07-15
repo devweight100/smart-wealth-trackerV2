@@ -291,12 +291,12 @@ function refreshDashboard() {
 
   // Total pending/unpaid future expenses (future date >= today, status !== 'paid')
   const totalFutureExpense = txList
-    .filter(t => t.type === 'future' && t.status !== 'paid' && t.date >= todayStr)
+    .filter(t => t.type === 'future' && t.status !== 'paid' && (t.dueDate || t.date) >= todayStr)
     .reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
   // Total overdue unpaid expenses (future date < today, status !== 'paid')
   const overdueTx = txList
-    .filter(t => t.type === 'future' && t.status !== 'paid' && t.date < todayStr);
+    .filter(t => t.type === 'future' && t.status !== 'paid' && (t.dueDate || t.date) < todayStr);
   const totalOverdue = overdueTx.reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
   // Update Stats Cards
@@ -322,8 +322,8 @@ function refreshDashboard() {
   const sevenDaysLaterStr = sevenDaysLater.toLocaleDateString('sv-SE');
 
   // Filter future expenses for today and next 7 days (ONLY type === 'future' and status !== 'paid')
-  const todayExpenses        = txList.filter(t => t.type === 'future' && t.status !== 'paid' && t.date === todayStr);
-  const upcoming7DaysExpenses = txList.filter(t => t.type === 'future' && t.status !== 'paid' && t.date > todayStr && t.date <= sevenDaysLaterStr);
+  const todayExpenses        = txList.filter(t => t.type === 'future' && t.status !== 'paid' && (t.dueDate || t.date) === todayStr);
+  const upcoming7DaysExpenses = txList.filter(t => t.type === 'future' && t.status !== 'paid' && (t.dueDate || t.date) > todayStr && (t.dueDate || t.date) <= sevenDaysLaterStr);
 
   if (todayExpenses.length > 0 || upcoming7DaysExpenses.length > 0) {
     let alertsHtml = '<div class="upcoming-alert-container">';
@@ -374,8 +374,8 @@ function refreshDashboard() {
   
   // Sort future expenses ascending (soonest first, unpaid only)
   const upcomingTx = txList
-    .filter(t => t.type === 'future' && t.status !== 'paid' && t.date > todayStr)
-    .sort((a, b) => a.date.localeCompare(b.date));
+    .filter(t => t.type === 'future' && t.status !== 'paid' && (t.dueDate || t.date) > todayStr)
+    .sort((a, b) => (a.dueDate || a.date).localeCompare(b.dueDate || b.date));
   
   document.getElementById('upcoming-count').innerText = `${upcomingTx.length} รายการ`;
   
@@ -388,7 +388,7 @@ function refreshDashboard() {
   } else {
     upcomingTx.forEach(t => {
       const acc = State.accounts.find(a => a.id === t.accountId);
-      const dateTh = formatDateThShort(t.date);
+      const dateTh = formatDateThShort(t.dueDate || t.date);
       
       upcomingList.innerHTML += `
         <div class="upcoming-item">
@@ -568,7 +568,7 @@ function refreshTransactionsTable() {
     // Calculate urgency row styling for unpaid prepaid expenses
     let rowUrgencyClass = '';
     if (t.type === 'future' && t.status !== 'paid') {
-      const parts = t.date.split('-');
+      const parts = (t.dueDate || t.date).split('-');
       if (parts.length === 3) {
         const txDate = new Date(parts[0], parts[1] - 1, parts[2]);
         txDate.setHours(0,0,0,0);
@@ -595,7 +595,7 @@ function refreshTransactionsTable() {
       let statusText = '';
       if (t.status === 'paid') {
         statusText = '<span class="badge badge-emerald" style="margin-left:0.25rem;"><i class="fa-solid fa-check mr-1"></i> ชำระแล้ว</span>';
-      } else if (t.date < todayStr) {
+      } else if ((t.dueDate || t.date) < todayStr) {
         statusText = '<span class="badge badge-rose" style="margin-left:0.25rem; border:1.5px solid var(--amber);"><i class="fa-solid fa-triangle-exclamation mr-1"></i> เกินกำหนด</span>';
       } else {
         statusText = '<span class="badge badge-slate" style="margin-left:0.25rem;"><i class="fa-regular fa-clock mr-1"></i> ค้างชำระ</span>';
@@ -1462,8 +1462,9 @@ function openCreateTransactionModal() {
   document.getElementById('tx-id').value = '';
   document.getElementById('tx-slip-url').value = '';
   
-  // Set date to today
+  // Set date to today and reset due date
   document.getElementById('tx-date').value = new Date().toLocaleDateString('sv-SE');
+  document.getElementById('tx-due-date').value = '';
   
   // Reset Upload badge
   removeUploadedAttachment();
@@ -1517,6 +1518,9 @@ function openEditTransactionModal(id) {
   
   if (formType === 'future') {
     document.getElementById('tx-status').value = t.status || 'pending';
+    document.getElementById('tx-due-date').value = t.dueDate || t.date || '';
+  } else {
+    document.getElementById('tx-due-date').value = '';
   }
 
   document.getElementById('tx-amount').value = t.amount;
@@ -1628,9 +1632,9 @@ function openFutureDetailsModal() {
   // Filter future type transactions that are NOT paid
   const allPendingFuture = (Array.isArray(State.transactions) ? State.transactions : []).filter(t => t.type === 'future' && t.status !== 'paid');
   
-  const todayList = allPendingFuture.filter(t => t.date === todayStr);
-  const weekList = allPendingFuture.filter(t => t.date > todayStr && t.date <= sevenDaysLaterStr);
-  const monthList = allPendingFuture.filter(t => t.date > todayStr && t.date <= thirtyDaysLaterStr);
+  const todayList = allPendingFuture.filter(t => (t.dueDate || t.date) === todayStr);
+  const weekList = allPendingFuture.filter(t => (t.dueDate || t.date) > todayStr && (t.dueDate || t.date) <= sevenDaysLaterStr);
+  const monthList = allPendingFuture.filter(t => (t.dueDate || t.date) > todayStr && (t.dueDate || t.date) <= thirtyDaysLaterStr);
   const customTotal = allPendingFuture.reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
   const todayTotal = todayList.reduce((sum, t) => sum + Number(t.amount || 0), 0);
@@ -1695,8 +1699,9 @@ function openFutureDetailsModal() {
       const endVal = document.getElementById('future-custom-end').value;
 
       displayList = allPendingFuture.filter(t => {
-        if (startVal && t.date < startVal) return false;
-        if (endVal && t.date > endVal) return false;
+        const targetDate = t.dueDate || t.date;
+        if (startVal && targetDate < startVal) return false;
+        if (endVal && targetDate > endVal) return false;
         return true;
       });
 
@@ -1742,7 +1747,7 @@ function renderFutureDetailRow(t, container) {
   container.innerHTML += `
     <div class="future-detail-item">
       <div class="future-detail-left">
-        <span class="future-detail-date"><i class="fa-solid fa-clock"></i> ${formatDateThShort(t.date)}</span>
+        <span class="future-detail-date"><i class="fa-solid fa-clock"></i> ${formatDateThShort(t.dueDate || t.date)}</span>
         <span class="future-detail-title">${t.notes || t.category}</span>
         <span class="future-detail-cat">หมวดหมู่: ${t.category}</span>
       </div>
@@ -1775,8 +1780,15 @@ async function handleTransactionSubmit(e) {
   const accountId = paymentMethod === 'Cash' ? 'acc-cash' : document.getElementById('tx-account').value;
   const toAccountId = document.getElementById('tx-to-account').value;
   
+  const dueDate = document.getElementById('tx-due-date').value;
+
   // Check if future transaction is being paid but account is unspecified
   if (type === 'future') {
+    if (!dueDate) {
+      alert('กรุณาระบุวันครบกำหนดชำระ');
+      document.getElementById('tx-due-date').focus();
+      return;
+    }
     const status = document.getElementById('tx-status').value;
     if (status === 'paid' && (!accountId || accountId === 'unspecified')) {
       alert('กรุณาระบุบัญชีที่ใช้จ่ายเงินก่อนทำรายการชำระเงิน');
@@ -1813,7 +1825,8 @@ async function handleTransactionSubmit(e) {
     toAccountId: type === 'transfer' ? toAccountId : undefined,
     notes,
     slipUrl: slipUrl || null,
-    status: type === 'future' ? document.getElementById('tx-status').value : undefined
+    status: type === 'future' ? document.getElementById('tx-status').value : undefined,
+    dueDate: type === 'future' ? dueDate : undefined
   };
 
   try {
@@ -2053,6 +2066,7 @@ function formatDateThShort(dateStr) {
 
 function handleTypeChange(type) {
   const statusGroup = document.getElementById('group-tx-status');
+  const dueDateGroup = document.getElementById('group-tx-due-date');
   const catGroup = document.getElementById('group-tx-category');
   const methodGroup = document.getElementById('group-tx-payment-method');
   const toAccGroup = document.getElementById('group-tx-to-account');
@@ -2060,8 +2074,9 @@ function handleTypeChange(type) {
   const dateLabel = document.querySelector('label[for="tx-date"]');
 
   if (statusGroup) statusGroup.style.display = type === 'future' ? 'flex' : 'none';
+  if (dueDateGroup) dueDateGroup.style.display = type === 'future' ? 'flex' : 'none';
   if (dateLabel) {
-    dateLabel.innerHTML = type === 'future' ? 'วันครบกำหนดชำระ <span class="text-rose">*</span>' : 'วันที่ทำรายการ <span class="text-rose">*</span>';
+    dateLabel.innerHTML = 'วันที่ทำรายการ <span class="text-rose">*</span>';
   }
 
   if (type === 'transfer') {
@@ -2495,8 +2510,8 @@ function checkDailyAlert() {
 
   const txList = Array.isArray(State.transactions) ? State.transactions : [];
   
-  const overdueList = txList.filter(t => t.type === 'future' && t.status !== 'paid' && t.date < todayStr);
-  const upcomingList = txList.filter(t => t.type === 'future' && t.status !== 'paid' && t.date >= todayStr && t.date <= sevenDaysLaterStr);
+  const overdueList = txList.filter(t => t.type === 'future' && t.status !== 'paid' && (t.dueDate || t.date) < todayStr);
+  const upcomingList = txList.filter(t => t.type === 'future' && t.status !== 'paid' && (t.dueDate || t.date) >= todayStr && (t.dueDate || t.date) <= sevenDaysLaterStr);
 
   if (overdueList.length === 0 && upcomingList.length === 0) {
     localStorage.setItem('swt_last_alert_date', todayStr);
@@ -2516,7 +2531,7 @@ function checkDailyAlert() {
       overdueContainer.innerHTML += `
         <div class="future-detail-item" style="border-left: 4px solid var(--rose);">
           <div class="future-detail-left">
-            <span class="future-detail-date text-rose"><i class="fa-solid fa-calendar-xmark"></i> ${formatDateThShort(t.date)} (เกินกำหนด)</span>
+            <span class="future-detail-date text-rose"><i class="fa-solid fa-calendar-xmark"></i> ${formatDateThShort(t.dueDate || t.date)} (เกินกำหนด)</span>
             <span class="future-detail-title">${t.notes || t.category}</span>
           </div>
           <div class="future-detail-right">
@@ -2536,7 +2551,7 @@ function checkDailyAlert() {
       upcomingContainer.innerHTML += `
         <div class="future-detail-item" style="border-left: 4px solid var(--amber);">
           <div class="future-detail-left">
-            <span class="future-detail-date text-amber-hover"><i class="fa-solid fa-clock"></i> ${formatDateThShort(t.date)}</span>
+            <span class="future-detail-date text-amber-hover"><i class="fa-solid fa-clock"></i> ${formatDateThShort(t.dueDate || t.date)}</span>
             <span class="future-detail-title">${t.notes || t.category}</span>
           </div>
           <div class="future-detail-right">
