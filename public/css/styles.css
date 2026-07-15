@@ -1478,6 +1478,11 @@ body {
   background-color: var(--bg-app);
 }
 
+.category-list-item > span,
+.category-list-item > span * {
+  pointer-events: none;
+}
+
 .category-item-text {
   font-size: 0.88rem;
   font-weight: 700;

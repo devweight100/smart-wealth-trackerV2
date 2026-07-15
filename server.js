@@ -422,7 +422,8 @@ app.post('/api/transactions', (req, res) => {
     accountId: req.body.accountId, // account ID associated
     notes: req.body.notes || '',
     slipUrl: req.body.slipUrl || null, // attachment path
-    status: req.body.type === 'future' ? (req.body.status || 'pending') : undefined
+    status: req.body.type === 'future' ? (req.body.status || 'pending') : undefined,
+    dueDate: req.body.type === 'future' ? req.body.dueDate : undefined
   };
 
   currentTransactions.push(tx);
@@ -448,15 +449,16 @@ app.put('/api/transactions/:id', (req, res) => {
     const txIndex = updatedTransactions.findIndex(t => t.id === req.params.id);
     updatedTransactions[txIndex] = {
       ...updatedTransactions[txIndex],
-      date: req.body.date || tx.date,
-      type: req.body.type || tx.type,
-      category: req.body.category || tx.category,
+      date: req.body.date !== undefined ? req.body.date : tx.date,
+      type: req.body.type !== undefined ? req.body.type : tx.type,
+      category: req.body.category !== undefined ? req.body.category : tx.category,
       amount: Number(req.body.amount !== undefined ? req.body.amount : tx.amount),
-      paymentMethod: req.body.paymentMethod || tx.paymentMethod,
-      accountId: req.body.accountId || tx.accountId,
+      paymentMethod: req.body.paymentMethod !== undefined ? req.body.paymentMethod : tx.paymentMethod,
+      accountId: req.body.accountId !== undefined ? req.body.accountId : tx.accountId,
       notes: req.body.notes !== undefined ? req.body.notes : tx.notes,
       slipUrl: req.body.slipUrl !== undefined ? req.body.slipUrl : tx.slipUrl,
       status: req.body.status !== undefined ? req.body.status : tx.status,
+      dueDate: req.body.dueDate !== undefined ? req.body.dueDate : tx.dueDate,
       transferTxId: undefined
     };
     writeJSONFile(TRANSACTIONS_FILE, updatedTransactions);
@@ -544,15 +546,16 @@ app.put('/api/transactions/:id', (req, res) => {
 
   const updated = {
     ...currentTransactions[index],
-    date: req.body.date || currentTransactions[index].date,
-    type: req.body.type || currentTransactions[index].type,
-    category: req.body.category || currentTransactions[index].category,
+    date: req.body.date !== undefined ? req.body.date : currentTransactions[index].date,
+    type: req.body.type !== undefined ? req.body.type : currentTransactions[index].type,
+    category: req.body.category !== undefined ? req.body.category : currentTransactions[index].category,
     amount: Number(req.body.amount !== undefined ? req.body.amount : currentTransactions[index].amount),
-    paymentMethod: req.body.paymentMethod || currentTransactions[index].paymentMethod,
-    accountId: req.body.accountId || currentTransactions[index].accountId,
+    paymentMethod: req.body.paymentMethod !== undefined ? req.body.paymentMethod : currentTransactions[index].paymentMethod,
+    accountId: req.body.accountId !== undefined ? req.body.accountId : currentTransactions[index].accountId,
     notes: req.body.notes !== undefined ? req.body.notes : currentTransactions[index].notes,
     slipUrl: req.body.slipUrl !== undefined ? req.body.slipUrl : currentTransactions[index].slipUrl,
-    status: req.body.status !== undefined ? req.body.status : currentTransactions[index].status
+    status: req.body.status !== undefined ? req.body.status : currentTransactions[index].status,
+    dueDate: req.body.dueDate !== undefined ? req.body.dueDate : currentTransactions[index].dueDate
   };
 
   currentTransactions[index] = updated;

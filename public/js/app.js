@@ -611,6 +611,28 @@ function refreshTransactionsTable() {
     }
 
     let detailHTML = `<div class="table-text-main">${t.notes || '-'}</div>`;
+    if (t.type === 'future') {
+      const todayStr = new Date().toLocaleDateString('sv-SE');
+      const isPaid = t.status === 'paid';
+      const isOverdue = !isPaid && (t.dueDate || t.date) < todayStr;
+      
+      let statusBadge = '';
+      if (isPaid) {
+        statusBadge = '<span class="badge badge-emerald" style="font-size: 0.7rem; padding: 0.15rem 0.35rem;"><i class="fa-solid fa-check"></i> ชำระแล้ว</span>';
+      } else if (isOverdue) {
+        statusBadge = '<span class="badge badge-rose" style="font-size: 0.7rem; padding: 0.15rem 0.35rem; border:1px solid var(--amber);"><i class="fa-solid fa-triangle-exclamation"></i> เกินกำหนด</span>';
+      } else {
+        statusBadge = '<span class="badge badge-slate" style="font-size: 0.7rem; padding: 0.15rem 0.35rem;"><i class="fa-regular fa-clock"></i> ค้างชำระ</span>';
+      }
+
+      const formattedDueDate = formatDateThShort(t.dueDate || t.date);
+      detailHTML += `
+        <div class="table-text-sub" style="margin-top: 0.35rem; display: flex; flex-direction: column; gap: 0.2rem;">
+          <div><i class="fa-regular fa-calendar-check text-amber-hover mr-1"></i> กำหนดชำระ: <strong>${formattedDueDate}</strong></div>
+          <div style="margin-top: 0.15rem; display: flex; align-items: center; gap: 0.25rem;">สถานะ: ${statusBadge}</div>
+        </div>`;
+    }
+    
     let accountCellHTML = `<div class="table-text-main">${t.accountId === '' || t.accountId === 'unspecified' || !t.accountId ? '<span class="text-slate">ไม่ระบุ</span>' : (acc ? acc.name : 'ถูกลบ')}</div>
                            <div class="table-text-sub">${acc && acc.type === 'bank' ? `${acc.bankName}` : '-'}</div>`;
 
@@ -2506,6 +2528,7 @@ let draggedId = null;
 function handleDragStart(e) {
   draggedId = e.currentTarget.getAttribute('data-id');
   e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', draggedId);
 }
 
 function handleDragOver(e) {
