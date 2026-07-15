@@ -880,8 +880,45 @@
           <!-- Dynamically populated detail rows -->
         </div>
       </div>
-      <div class="modal-footer flex-end">
+      <div class="modal-footer flex-end" style="gap: 0.5rem;">
+        <button class="btn btn-primary" id="btn-view-future-details-page"><i class="fa-solid fa-eye"></i> ดูรายละเอียด</button>
         <button class="btn btn-outline" id="btn-close-future-modal-footer">ปิดหน้าต่าง</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- --- 4. MODAL: DAILY FUTURE EXPENSES ALERT (ป๊อปอัปแจ้งเตือนรายจ่ายรายวัน) --- -->
+  <div class="modal-backdrop" id="modal-daily-alert">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title"><i class="fa-solid fa-bell text-rose"></i> แจ้งเตือนรายจ่ายล่วงหน้าค้างชำระ</h3>
+        <button class="modal-close" id="btn-close-daily-alert">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="text-slate text-sm mb-4">รายการรายจ่ายล่วงหน้าค้างชำระที่คุณต้องเตรียมตัวชำระเงิน:</p>
+        
+        <!-- Overdue section -->
+        <div id="daily-alert-overdue-section" class="mb-4" style="display: none;">
+          <h4 class="section-heading mb-2 text-rose" style="font-size: 0.9rem; display: flex; align-items: center; gap: 0.35rem;">
+            <i class="fa-solid fa-circle-exclamation"></i> เกินกำหนดชำระแล้ว
+          </h4>
+          <div class="scrollbar" id="daily-alert-overdue-list" style="max-height: 150px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.5rem; padding-right: 0.25rem;">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+
+        <!-- Upcoming section -->
+        <div id="daily-alert-upcoming-section" style="display: none;">
+          <h4 class="section-heading mb-2 text-amber-hover" style="font-size: 0.9rem; display: flex; align-items: center; gap: 0.35rem;">
+            <i class="fa-solid fa-clock"></i> ครบกำหนดชำระภายใน 7 วันข้างหน้า
+          </h4>
+          <div class="scrollbar" id="daily-alert-upcoming-list" style="max-height: 150px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.5rem; padding-right: 0.25rem;">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer flex-end">
+        <button class="btn btn-primary" id="btn-close-daily-alert-footer">รับทราบ</button>
       </div>
     </div>
   </div>

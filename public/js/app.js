@@ -11,7 +11,8 @@ const State = {
     account: 'all',
     search: '',
     dateStart: '',
-    dateEnd: ''
+    dateEnd: '',
+    futureStatus: 'all'
   },
   pagination: {
     page: 1,
@@ -107,6 +108,8 @@ async function reloadAppData() {
     refreshCategoriesLists();
     console.log('[SWT] refreshReportsTable...');
     refreshReportsTable();
+    console.log('[SWT] checkDailyAlert...');
+    checkDailyAlert();
     console.log('[SWT] Done!');
 
   } catch (error) {
@@ -179,6 +182,7 @@ function updateTransactionFormAccounts() {
   const method = document.getElementById('tx-payment-method').value;
   const txAccSelect = document.getElementById('tx-account');
   const currentVal = txAccSelect.value;
+  const type = document.getElementById('tx-type').value;
   
   txAccSelect.innerHTML = '';
   
@@ -190,9 +194,15 @@ function updateTransactionFormAccounts() {
     document.getElementById('group-tx-account').style.opacity = '1';
   } else {
     // Cash method
-    txAccSelect.disabled = true;
-    document.getElementById('group-tx-account').style.opacity = '0.5';
+    txAccSelect.disabled = type === 'future' ? false : true;
+    document.getElementById('group-tx-account').style.opacity = type === 'future' ? '1' : '0.5';
     filteredAccounts = State.accounts.filter(acc => acc.type === 'cash' || acc.id === 'acc-cash');
+  }
+
+  if (type === 'future') {
+    txAccSelect.disabled = false;
+    document.getElementById('group-tx-account').style.opacity = '1';
+    txAccSelect.innerHTML += '<option value="">ไม่ระบุ</option>';
   }
   
   filteredAccounts.forEach(acc => {
@@ -200,7 +210,15 @@ function updateTransactionFormAccounts() {
   });
   
   // Set value
-  if (method === 'Cash') {
+  if (type === 'future') {
+    if (currentVal === '' || currentVal === 'unspecified') {
+      txAccSelect.value = '';
+    } else if (filteredAccounts.some(acc => acc.id === currentVal)) {
+      txAccSelect.value = currentVal;
+    } else {
+      txAccSelect.value = ''; // Default to unspecified ("ไม่ระบุ")
+    }
+  } else if (method === 'Cash') {
     txAccSelect.value = 'acc-cash';
   } else if (filteredAccounts.some(acc => acc.id === currentVal)) {
     txAccSelect.value = currentVal;
@@ -437,7 +455,10 @@ function refreshTransactionsTable() {
     // Type filter
     if (State.filters.type === 'income' && t.type !== 'income') return false;
     if (State.filters.type === 'expense' && t.type !== 'expense') return false;
-    if (State.filters.type === 'future' && t.type !== 'future') return false;
+    if (State.filters.type === 'future') {
+      if (t.type !== 'future') return false;
+      if (State.filters.futureStatus === 'unpaid' && t.status === 'paid') return false;
+    }
     if (State.filters.type === 'transfer' && t.type !== 'transfer_out' && t.type !== 'transfer_in') return false;
 
     // Category filter
@@ -595,7 +616,7 @@ function refreshTransactionsTable() {
     }
 
     let detailHTML = `<div class="table-text-main">${t.notes || '-'}</div>`;
-    let accountCellHTML = `<div class="table-text-main">${acc ? acc.name : 'ไม่ระบุ/ถูกลบ'}</div>
+    let accountCellHTML = `<div class="table-text-main">${t.accountId === '' || t.accountId === 'unspecified' || !t.accountId ? '<span class="text-slate">ไม่ระบุ</span>' : (acc ? acc.name : 'ถูกลบ')}</div>
                            <div class="table-text-sub">${acc && acc.type === 'bank' ? `${acc.bankName}` : '-'}</div>`;
 
     if (isTransferOut || isTransferIn) {
@@ -1014,6 +1035,7 @@ function setupEventListeners() {
 
   document.getElementById('filter-type').addEventListener('change', (e) => {
     State.filters.type = e.target.value;
+    State.filters.futureStatus = 'all';
     State.pagination.page = 1;
     refreshTransactionsTable();
     refreshReportsTable();
@@ -1061,7 +1083,8 @@ function setupEventListeners() {
       account: 'all',
       search: '',
       dateStart: '',
-      dateEnd: ''
+      dateEnd: '',
+      futureStatus: 'all'
     };
     State.pagination.page = 1;
     refreshTransactionsTable();
@@ -1071,6 +1094,44 @@ function setupEventListeners() {
   // 4. Modal Triggers
   document.getElementById('btn-close-tx-modal').addEventListener('click', closeTransactionModal);
   document.getElementById('btn-cancel-tx-modal').addEventListener('click', closeTransactionModal);
+
+  // Redirection from future details modal to filter on transactions view
+  document.getElementById('btn-view-future-details-page').addEventListener('click', () => {
+    closeFutureDetailsModal();
+    
+    // Navigate to transactions tab
+    const navBtn = document.getElementById('btn-nav-transactions');
+    if (navBtn) navBtn.click();
+    
+    // Apply filters
+    State.filters.type = 'future';
+    State.filters.futureStatus = 'unpaid';
+    State.filters.category = 'all';
+    State.filters.account = 'all';
+    State.filters.dateStart = '';
+    State.filters.dateEnd = '';
+    State.filters.search = '';
+    
+    document.getElementById('filter-type').value = 'future';
+    document.getElementById('filter-category').value = 'all';
+    document.getElementById('filter-account').value = 'all';
+    document.getElementById('filter-date-start').value = '';
+    document.getElementById('filter-date-end').value = '';
+    document.getElementById('tx-search').value = '';
+    
+    State.pagination.page = 1;
+    refreshTransactionsTable();
+    refreshReportsTable();
+  });
+
+  // Daily alert modal close events
+  document.getElementById('btn-close-daily-alert').addEventListener('click', closeDailyAlertModal);
+  document.getElementById('btn-close-daily-alert-footer').addEventListener('click', closeDailyAlertModal);
+  document.getElementById('modal-daily-alert').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('modal-daily-alert')) {
+      closeDailyAlertModal();
+    }
+  });
   
   // Transaction Type Blocks logic
   const typeButtons = document.querySelectorAll('.transaction-type-blocks .type-block-btn');
@@ -1687,7 +1748,7 @@ function renderFutureDetailRow(t, container) {
       </div>
       <div class="future-detail-right">
         <span class="future-detail-amount">-${formatCurrency(t.amount)}</span>
-        <span class="future-detail-acc">${acc ? acc.name : '-'}</span>
+        <span class="future-detail-acc">${acc ? acc.name : 'ไม่ระบุ'}</span>
       </div>
     </div>`;
 }
@@ -1714,6 +1775,16 @@ async function handleTransactionSubmit(e) {
   const accountId = paymentMethod === 'Cash' ? 'acc-cash' : document.getElementById('tx-account').value;
   const toAccountId = document.getElementById('tx-to-account').value;
   
+  // Check if future transaction is being paid but account is unspecified
+  if (type === 'future') {
+    const status = document.getElementById('tx-status').value;
+    if (status === 'paid' && (!accountId || accountId === 'unspecified')) {
+      alert('กรุณาระบุบัญชีที่ใช้จ่ายเงินก่อนทำรายการชำระเงิน');
+      document.getElementById('tx-account').focus();
+      return;
+    }
+  }
+
   const notes = document.getElementById('tx-notes').value;
 
   showLoader();
@@ -1986,8 +2057,12 @@ function handleTypeChange(type) {
   const methodGroup = document.getElementById('group-tx-payment-method');
   const toAccGroup = document.getElementById('group-tx-to-account');
   const accLabel = document.querySelector('#group-tx-account label');
+  const dateLabel = document.querySelector('label[for="tx-date"]');
 
   if (statusGroup) statusGroup.style.display = type === 'future' ? 'flex' : 'none';
+  if (dateLabel) {
+    dateLabel.innerHTML = type === 'future' ? 'วันครบกำหนดชำระ <span class="text-rose">*</span>' : 'วันที่ทำรายการ <span class="text-rose">*</span>';
+  }
 
   if (type === 'transfer') {
     if (catGroup) catGroup.style.display = 'none';
@@ -1999,7 +2074,9 @@ function handleTypeChange(type) {
     if (catGroup) catGroup.style.display = 'flex';
     if (methodGroup) methodGroup.style.display = 'flex';
     if (toAccGroup) toAccGroup.style.display = 'none';
-    if (accLabel) accLabel.innerHTML = 'บัญชีการเงินที่ผูก <span class="text-rose">*</span>';
+    if (accLabel) {
+      accLabel.innerHTML = type === 'future' ? 'บัญชีที่ใช้จ่ายเงิน' : 'บัญชีการเงินที่ผูก <span class="text-rose">*</span>';
+    }
     updateTransactionFormCategories();
     updateTransactionFormAccounts();
   }
@@ -2208,6 +2285,12 @@ async function markAsPaid(id) {
   const t = (Array.isArray(State.transactions) ? State.transactions : []).find(tx => tx.id === id);
   if (!t) return;
   
+  if (!t.accountId || t.accountId === 'unspecified' || t.accountId === '') {
+    alert('กรุณาระบุบัญชีที่ใช้จ่ายเงินก่อนทำรายการชำระเงิน');
+    openEditTransactionModal(id);
+    return;
+  }
+  
   showLoader();
   try {
     await API.updateTransaction(id, {
@@ -2394,3 +2477,91 @@ window.testLineBot               = testLineBot;
 window.sendLineReport            = sendLineReport;
 window.sendLineMonthlyReport     = sendLineMonthlyReport;
 window.toggleLineTokenVisibility = toggleLineTokenVisibility;
+
+function checkDailyAlert() {
+  const token = localStorage.getItem('swt_session_token');
+  if (!token) return;
+
+  const todayStr = new Date().toLocaleDateString('sv-SE');
+  const lastAlertDate = localStorage.getItem('swt_last_alert_date');
+
+  if (lastAlertDate === todayStr) {
+    return;
+  }
+
+  const sevenDaysLater = new Date();
+  sevenDaysLater.setDate(sevenDaysLater.getDate() + 7);
+  const sevenDaysLaterStr = sevenDaysLater.toLocaleDateString('sv-SE');
+
+  const txList = Array.isArray(State.transactions) ? State.transactions : [];
+  
+  const overdueList = txList.filter(t => t.type === 'future' && t.status !== 'paid' && t.date < todayStr);
+  const upcomingList = txList.filter(t => t.type === 'future' && t.status !== 'paid' && t.date >= todayStr && t.date <= sevenDaysLaterStr);
+
+  if (overdueList.length === 0 && upcomingList.length === 0) {
+    localStorage.setItem('swt_last_alert_date', todayStr);
+    return;
+  }
+
+  const overdueContainer = document.getElementById('daily-alert-overdue-list');
+  const upcomingContainer = document.getElementById('daily-alert-upcoming-list');
+  
+  overdueContainer.innerHTML = '';
+  upcomingContainer.innerHTML = '';
+
+  if (overdueList.length > 0) {
+    document.getElementById('daily-alert-overdue-section').style.display = 'block';
+    overdueList.forEach(t => {
+      const acc = State.accounts.find(a => a.id === t.accountId);
+      overdueContainer.innerHTML += `
+        <div class="future-detail-item" style="border-left: 4px solid var(--rose);">
+          <div class="future-detail-left">
+            <span class="future-detail-date text-rose"><i class="fa-solid fa-calendar-xmark"></i> ${formatDateThShort(t.date)} (เกินกำหนด)</span>
+            <span class="future-detail-title">${t.notes || t.category}</span>
+          </div>
+          <div class="future-detail-right">
+            <span class="future-detail-amount">-${formatCurrency(t.amount)}</span>
+            <span class="future-detail-acc">${acc ? acc.name : 'ไม่ระบุ'}</span>
+          </div>
+        </div>`;
+    });
+  } else {
+    document.getElementById('daily-alert-overdue-section').style.display = 'none';
+  }
+
+  if (upcomingList.length > 0) {
+    document.getElementById('daily-alert-upcoming-section').style.display = 'block';
+    upcomingList.forEach(t => {
+      const acc = State.accounts.find(a => a.id === t.accountId);
+      upcomingContainer.innerHTML += `
+        <div class="future-detail-item" style="border-left: 4px solid var(--amber);">
+          <div class="future-detail-left">
+            <span class="future-detail-date text-amber-hover"><i class="fa-solid fa-clock"></i> ${formatDateThShort(t.date)}</span>
+            <span class="future-detail-title">${t.notes || t.category}</span>
+          </div>
+          <div class="future-detail-right">
+            <span class="future-detail-amount">-${formatCurrency(t.amount)}</span>
+            <span class="future-detail-acc">${acc ? acc.name : 'ไม่ระบุ'}</span>
+          </div>
+        </div>`;
+    });
+  } else {
+    document.getElementById('daily-alert-upcoming-section').style.display = 'none';
+  }
+
+  const dailyAlertModal = document.getElementById('modal-daily-alert');
+  if (dailyAlertModal) {
+    dailyAlertModal.classList.add('active');
+    document.body.classList.add('modal-open');
+  }
+
+  localStorage.setItem('swt_last_alert_date', todayStr);
+}
+
+function closeDailyAlertModal() {
+  document.getElementById('modal-daily-alert').classList.remove('active');
+  document.body.classList.remove('modal-open');
+}
+
+window.checkDailyAlert = checkDailyAlert;
+window.closeDailyAlertModal = closeDailyAlertModal;
