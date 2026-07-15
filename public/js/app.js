@@ -186,23 +186,24 @@ function updateTransactionFormAccounts() {
   
   txAccSelect.innerHTML = '';
   
-  let filteredAccounts = State.accounts;
-  if (method === 'Transfer') {
-    // Remove cash accounts
+  let filteredAccounts = [];
+  
+  if (method === 'Unspecified') {
+    txAccSelect.disabled = true;
+    txAccSelect.required = false;
+    document.getElementById('group-tx-account').style.opacity = '0.5';
+    txAccSelect.innerHTML = '<option value="">ไม่ระบุ</option>';
+  } else if (method === 'Transfer') {
     filteredAccounts = State.accounts.filter(acc => acc.type !== 'cash' && acc.id !== 'acc-cash');
     txAccSelect.disabled = false;
+    txAccSelect.required = true;
     document.getElementById('group-tx-account').style.opacity = '1';
   } else {
     // Cash method
     txAccSelect.disabled = type === 'future' ? false : true;
+    txAccSelect.required = type === 'future' ? false : true;
     document.getElementById('group-tx-account').style.opacity = type === 'future' ? '1' : '0.5';
     filteredAccounts = State.accounts.filter(acc => acc.type === 'cash' || acc.id === 'acc-cash');
-  }
-
-  if (type === 'future') {
-    txAccSelect.disabled = false;
-    document.getElementById('group-tx-account').style.opacity = '1';
-    txAccSelect.innerHTML += '<option value="">ไม่ระบุ</option>';
   }
   
   filteredAccounts.forEach(acc => {
@@ -210,14 +211,8 @@ function updateTransactionFormAccounts() {
   });
   
   // Set value
-  if (type === 'future') {
-    if (currentVal === '' || currentVal === 'unspecified') {
-      txAccSelect.value = '';
-    } else if (filteredAccounts.some(acc => acc.id === currentVal)) {
-      txAccSelect.value = currentVal;
-    } else {
-      txAccSelect.value = ''; // Default to unspecified ("ไม่ระบุ")
-    }
+  if (method === 'Unspecified') {
+    txAccSelect.value = '';
   } else if (method === 'Cash') {
     txAccSelect.value = 'acc-cash';
   } else if (filteredAccounts.some(acc => acc.id === currentVal)) {
@@ -346,7 +341,7 @@ function refreshDashboard() {
 
     // 2. Render 7 days ahead
     upcoming7DaysExpenses.forEach(t => {
-      const dateTh = formatDateThShort(t.date);
+      const dateTh = formatDateThShort(t.dueDate || t.date);
       alertsHtml += `
         <div class="upcoming-alert alert-warning">
           <i class="fa-regular fa-bell upcoming-alert-icon"></i>
@@ -832,8 +827,12 @@ function refreshCategoriesLists() {
   incList.innerHTML = '';
   expList.innerHTML = '';
 
-  const incomeCats = State.categories.filter(c => c.type === 'income');
-  const expenseCats = State.categories.filter(c => c.type === 'expense');
+  const incomeCats = State.categories
+    .filter(c => c.type === 'income')
+    .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || a.name.localeCompare(b.name, 'th'));
+  const expenseCats = State.categories
+    .filter(c => c.type === 'expense')
+    .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || a.name.localeCompare(b.name, 'th'));
 
   document.getElementById('income-categories-count').innerText = incomeCats.length;
   document.getElementById('expense-categories-count').innerText = expenseCats.length;
@@ -844,8 +843,9 @@ function refreshCategoriesLists() {
     const deleteBtn = `<button class="btn-table-action action-delete" onclick="deleteCategory('${cat.id}')" title="ลบหมวดหมู่"><i class="fa-solid fa-trash-can"></i></button>`;
 
     incList.innerHTML += `
-      <div class="category-list-item">
+      <div class="category-list-item" draggable="true" data-id="${cat.id}" ondragstart="handleDragStart(event)" ondragover="handleDragOver(event)" ondrop="handleDrop(event)" style="cursor: move;">
         <span class="category-item-text">
+          <i class="fa-solid fa-bars text-slate mr-2" style="font-size:0.8rem; opacity:0.5;"></i>
           <i class="fa-solid fa-circle-arrow-down text-emerald"></i> ${cat.name}
         </span>
         <div class="category-item-actions" style="display: flex; gap: 0.25rem;">
@@ -861,8 +861,9 @@ function refreshCategoriesLists() {
     const deleteBtn = `<button class="btn-table-action action-delete" onclick="deleteCategory('${cat.id}')" title="ลบหมวดหมู่"><i class="fa-solid fa-trash-can"></i></button>`;
 
     expList.innerHTML += `
-      <div class="category-list-item">
+      <div class="category-list-item" draggable="true" data-id="${cat.id}" ondragstart="handleDragStart(event)" ondragover="handleDragOver(event)" ondrop="handleDrop(event)" style="cursor: move;">
         <span class="category-item-text">
+          <i class="fa-solid fa-bars text-slate mr-2" style="font-size:0.8rem; opacity:0.5;"></i>
           <i class="fa-solid fa-circle-arrow-up text-rose"></i> ${cat.name}
         </span>
         <div class="category-item-actions" style="display: flex; gap: 0.25rem;">
@@ -1777,7 +1778,7 @@ async function handleTransactionSubmit(e) {
   const paymentMethod = document.getElementById('tx-payment-method').value;
   
   // If payment method is Cash, force accountId to cash
-  const accountId = paymentMethod === 'Cash' ? 'acc-cash' : document.getElementById('tx-account').value;
+  const accountId = paymentMethod === 'Cash' ? 'acc-cash' : (paymentMethod === 'Unspecified' ? '' : document.getElementById('tx-account').value);
   const toAccountId = document.getElementById('tx-to-account').value;
   
   const dueDate = document.getElementById('tx-due-date').value;
@@ -1790,9 +1791,9 @@ async function handleTransactionSubmit(e) {
       return;
     }
     const status = document.getElementById('tx-status').value;
-    if (status === 'paid' && (!accountId || accountId === 'unspecified')) {
-      alert('กรุณาระบุบัญชีที่ใช้จ่ายเงินก่อนทำรายการชำระเงิน');
-      document.getElementById('tx-account').focus();
+    if (status === 'paid' && (paymentMethod === 'Unspecified' || !accountId)) {
+      alert('กรุณาระบุวิธีการชำระเงินและบัญชีที่ใช้จ่ายก่อนทำรายการชำระเงิน');
+      document.getElementById('tx-payment-method').focus();
       return;
     }
   }
@@ -2092,6 +2093,13 @@ function handleTypeChange(type) {
     if (accLabel) {
       accLabel.innerHTML = type === 'future' ? 'บัญชีที่ใช้จ่ายเงิน' : 'บัญชีการเงินที่ผูก <span class="text-rose">*</span>';
     }
+    if (type === 'future') {
+      document.getElementById('tx-payment-method').value = 'Unspecified';
+    } else {
+      if (document.getElementById('tx-payment-method').value === 'Unspecified') {
+        document.getElementById('tx-payment-method').value = 'Transfer';
+      }
+    }
     updateTransactionFormCategories();
     updateTransactionFormAccounts();
   }
@@ -2300,8 +2308,8 @@ async function markAsPaid(id) {
   const t = (Array.isArray(State.transactions) ? State.transactions : []).find(tx => tx.id === id);
   if (!t) return;
   
-  if (!t.accountId || t.accountId === 'unspecified' || t.accountId === '') {
-    alert('กรุณาระบุบัญชีที่ใช้จ่ายเงินก่อนทำรายการชำระเงิน');
+  if (t.paymentMethod === 'Unspecified' || !t.accountId || t.accountId === 'unspecified' || t.accountId === '') {
+    alert('กรุณาระบุวิธีการชำระเงินและบัญชีที่ใช้จ่ายก่อนทำรายการชำระเงิน');
     openEditTransactionModal(id);
     return;
   }
@@ -2492,6 +2500,58 @@ window.testLineBot               = testLineBot;
 window.sendLineReport            = sendLineReport;
 window.sendLineMonthlyReport     = sendLineMonthlyReport;
 window.toggleLineTokenVisibility = toggleLineTokenVisibility;
+
+let draggedId = null;
+
+function handleDragStart(e) {
+  draggedId = e.currentTarget.getAttribute('data-id');
+  e.dataTransfer.effectAllowed = 'move';
+}
+
+function handleDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+}
+
+async function handleDrop(e) {
+  e.preventDefault();
+  const targetId = e.currentTarget.getAttribute('data-id');
+  if (draggedId === targetId) return;
+
+  const draggedCat = State.categories.find(c => c.id === draggedId);
+  const targetCat = State.categories.find(c => c.id === targetId);
+  if (!draggedCat || !targetCat || draggedCat.type !== targetCat.type) return;
+
+  const typeCats = State.categories
+    .filter(c => c.type === draggedCat.type)
+    .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || a.name.localeCompare(b.name, 'th'));
+
+  const draggedIndex = typeCats.findIndex(c => c.id === draggedId);
+  const targetIndex = typeCats.findIndex(c => c.id === targetId);
+
+  typeCats.splice(draggedIndex, 1);
+  typeCats.splice(targetIndex, 0, draggedCat);
+
+  showLoader();
+  try {
+    for (let i = 0; i < typeCats.length; i++) {
+      typeCats[i].sortOrder = i + 1;
+      await API.updateCategory(typeCats[i].id, {
+        name: typeCats[i].name,
+        sortOrder: typeCats[i].sortOrder
+      });
+    }
+    await reloadAppData();
+  } catch (err) {
+    alert('อัปเดตลำดับหมวดหมู่ล้มเหลว: ' + err.message);
+  } finally {
+    hideLoader();
+  }
+}
+
+window.handleDragStart = handleDragStart;
+window.handleDragOver = handleDragOver;
+window.handleDrop = handleDrop;
 
 function checkDailyAlert() {
   const token = localStorage.getItem('swt_session_token');

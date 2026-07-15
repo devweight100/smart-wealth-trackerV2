@@ -333,6 +333,9 @@ app.put('/api/categories/:id', (req, res) => {
   }
 
   currentCategories[index].name = req.body.name || currentCategories[index].name;
+  if (req.body.sortOrder !== undefined) {
+    currentCategories[index].sortOrder = Number(req.body.sortOrder);
+  }
   writeJSONFile(CATEGORIES_FILE, currentCategories);
 
   res.json(currentCategories[index]);
