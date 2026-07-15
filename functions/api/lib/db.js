@@ -114,9 +114,16 @@ export async function createCategory(db, data) {
 
 export async function updateCategory(db, id, data) {
   const now = nowISO();
+  const current = await db.prepare(`SELECT * FROM categories WHERE id = ? AND deleted_at IS NULL`).bind(id).first();
+  if (!current) return null;
+
   await db.prepare(
-    `UPDATE categories SET name=?, updated_at=? WHERE id=? AND deleted_at IS NULL`
-  ).bind(data.name, now, id).run();
+    `UPDATE categories SET name=?, sort_order=?, updated_at=? WHERE id=? AND deleted_at IS NULL`
+  ).bind(
+    data.name !== undefined ? data.name : current.name,
+    data.sortOrder !== undefined ? data.sortOrder : current.sort_order,
+    now, id
+  ).run();
   return getCategoryById(db, id);
 }
 

@@ -302,8 +302,11 @@ export async function onRequest(context) {
       const id = path.split('/')[2];
       if (method === 'PUT') {
         const body = await request.json();
-        if (!body.name?.trim()) return err('กรุณาระบุชื่อหมวดหมู่', 422);
-        const cat = await updateCategory(db, id, { name: body.name.trim() });
+        if (!body.name?.trim() && body.sortOrder === undefined) return err('กรุณาระบุข้อมูลที่ต้องการแก้ไข', 422);
+        const cat = await updateCategory(db, id, {
+          name: body.name ? body.name.trim() : undefined,
+          sortOrder: body.sortOrder !== undefined ? Number(body.sortOrder) : undefined
+        });
         if (!cat) return err('ไม่พบหมวดหมู่', 404);
         await writeAudit(db, { ...session, action: 'update', resource: 'category', resourceId: id, newData: cat, ...info });
         return json(cat);

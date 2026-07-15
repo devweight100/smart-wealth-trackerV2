@@ -587,15 +587,7 @@ function refreshTransactionsTable() {
     if (isIncome) {
       typeCellContent = '<span class="badge badge-emerald"><i class="fa-solid fa-circle-chevron-down mr-1"></i> รายรับ</span>';
     } else if (isFutureType) {
-      let statusText = '';
-      if (t.status === 'paid') {
-        statusText = '<span class="badge badge-emerald" style="margin-left:0.25rem;"><i class="fa-solid fa-check mr-1"></i> ชำระแล้ว</span>';
-      } else if ((t.dueDate || t.date) < todayStr) {
-        statusText = '<span class="badge badge-rose" style="margin-left:0.25rem; border:1.5px solid var(--amber);"><i class="fa-solid fa-triangle-exclamation mr-1"></i> เกินกำหนด</span>';
-      } else {
-        statusText = '<span class="badge badge-slate" style="margin-left:0.25rem;"><i class="fa-regular fa-clock mr-1"></i> ค้างชำระ</span>';
-      }
-      typeCellContent = `<span class="badge badge-amber"><i class="fa-regular fa-clock mr-1"></i> จ่ายล่วงหน้า</span> ${statusText}`;
+      typeCellContent = `<span class="badge badge-amber"><i class="fa-regular fa-clock mr-1"></i> จ่ายล่วงหน้า</span>`;
     } else if (isTransferOut || isTransferIn) {
       typeCellContent = '<span class="badge badge-indigo" style="background-color: var(--primary-light); color: var(--primary); border: 1px solid rgba(79,70,229,0.15);"><i class="fa-solid fa-money-bill-transfer mr-1"></i> ย้ายเงิน</span>';
     } else {

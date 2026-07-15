@@ -34,12 +34,14 @@ export function validateTransaction(body) {
   }
   
   if (!isTransfer) {
-    if (!body.paymentMethod || !['Cash', 'Transfer'].includes(body.paymentMethod)) {
-      errors.push({ field: 'paymentMethod', message: 'วิธีชำระต้องเป็น Cash หรือ Transfer' });
+    if (!body.paymentMethod || !['Cash', 'Transfer', 'Unspecified'].includes(body.paymentMethod)) {
+      errors.push({ field: 'paymentMethod', message: 'วิธีชำระต้องเป็น Cash, Transfer หรือ Unspecified' });
     }
   }
   
-  if (!body.accountId || typeof body.accountId !== 'string') {
+  if (typeof body.accountId !== 'string') {
+    errors.push({ field: 'accountId', message: 'รูปแบบบัญชีไม่ถูกต้อง' });
+  } else if (!body.accountId && !(body.type === 'future' && body.paymentMethod === 'Unspecified')) {
     errors.push({ field: 'accountId', message: 'กรุณาเลือกบัญชี' });
   }
   
