@@ -484,10 +484,12 @@
 
               <!-- 1. Section 1: Cash Sales -->
               <div class="shift-section-box mb-4">
-                <div class="shift-section-title text-emerald mb-2">
-                  <i class="fa-solid fa-money-bill-wave"></i> 1. รายรับเงินสด (Cash Sales)
+                <div class="shift-section-header">
+                  <div class="shift-section-title text-emerald">
+                    <i class="fa-solid fa-money-bill-wave"></i> 1. รายรับเงินสด (Cash Sales)
+                  </div>
                 </div>
-                <div class="form-group" style="max-width: 400px;">
+                <div class="form-group" style="max-width: 400px; margin-top: 0.8rem;">
                   <div class="input-prefix-group">
                     <span class="input-prefix">฿</span>
                     <input type="number" id="shift-cash-amount" step="0.01" min="0" placeholder="0.00" oninput="calculateShiftLiveSummary()">
@@ -497,50 +499,52 @@
 
               <!-- 2. Section 2: Transfer Incomes (Multi Accounts) -->
               <div class="shift-section-box mb-4">
-                <div class="flex-between mb-2" style="align-items: center;">
+                <div class="shift-section-header">
                   <div class="shift-section-title text-indigo">
                     <i class="fa-solid fa-credit-card"></i> 2. รายรับเงินโอน (แยกตามบัญชีธนาคาร)
                   </div>
-                  <button type="button" class="btn btn-outline btn-xs" onclick="addShiftTransferAccountRow()">
-                    <i class="fa-solid fa-plus"></i> เพิ่มบัญชีรับเงินโอน
+                  <button type="button" class="btn btn-indigo-vibrant" onclick="addShiftTransferAccountRow()">
+                    <i class="fa-solid fa-plus-circle"></i> เพิ่มบัญชีรับเงินโอน
                   </button>
                 </div>
-                <div id="shift-transfer-rows-container" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                <div id="shift-transfer-rows-container" style="display: flex; flex-direction: column; gap: 0.85rem; margin-top: 0.8rem;">
                   <!-- Dynamic transfer rows -->
                 </div>
               </div>
 
               <!-- 3. Section 3: Expenses Incurred -->
               <div class="shift-section-box mb-4">
-                <div class="flex-between mb-2" style="align-items: center;">
+                <div class="shift-section-header">
                   <div class="shift-section-title text-rose">
                     <i class="fa-solid fa-receipt"></i> 3. ค่าใช้จ่ายระหว่างวัน (Expenses)
                   </div>
-                  <button type="button" class="btn btn-outline btn-xs" onclick="addShiftExpenseRow()">
-                    <i class="fa-solid fa-plus"></i> เพิ่มรายการรายจ่าย
+                  <button type="button" class="btn btn-rose-vibrant" onclick="addShiftExpenseRow()">
+                    <i class="fa-solid fa-plus-circle"></i> เพิ่มรายการรายจ่าย
                   </button>
                 </div>
-                <div id="shift-expense-rows-container" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                <div id="shift-expense-rows-container" style="display: flex; flex-direction: column; gap: 0.85rem; margin-top: 0.8rem;">
                   <!-- Dynamic expense rows -->
                 </div>
               </div>
 
               <!-- 4. Section 4: File Upload Zone (Attached File at the bottom) -->
               <div class="shift-section-box mb-4">
-                <div class="shift-section-title text-slate mb-2">
-                  <i class="fa-solid fa-paperclip"></i> 4. เอกสารแนบ (สลิปสรุป / PDF รายงาน POS)
+                <div class="shift-section-header">
+                  <div class="shift-section-title text-slate">
+                    <i class="fa-solid fa-paperclip"></i> 4. เอกสารแนบ (สลิปสรุป / PDF รายงาน POS)
+                  </div>
                 </div>
-                <div class="attachment-upload-zone" id="shift-attachment-upload-zone" style="padding: 0.75rem 1rem;">
+                <div class="attachment-upload-zone" id="shift-attachment-upload-zone" style="padding: 1rem 1.25rem; margin-top: 0.8rem;">
                   <input type="file" id="shift-file-input" accept="image/*,application/pdf" style="display:none;" onchange="handleShiftFileSelect(event)">
-                  <label for="shift-file-input" class="upload-label" style="cursor: pointer; display: flex; align-items: center; gap: 0.75rem; justify-content: center; width: 100%;">
-                    <i class="fa-solid fa-cloud-arrow-up text-indigo upload-icon" style="font-size: 1.25rem;"></i>
+                  <label for="shift-file-input" class="upload-label" style="cursor: pointer; display: flex; align-items: center; gap: 0.85rem; justify-content: center; width: 100%;">
+                    <i class="fa-solid fa-cloud-arrow-up text-indigo upload-icon" style="font-size: 1.35rem;"></i>
                     <div>
-                      <div style="font-weight:700; font-size:0.85rem;">คลิกเพื่ออัปโหลดไฟล์ภาพสลิป หรือ PDF สรุปยอดขาย</div>
-                      <div style="font-size:0.75rem; color:var(--text-light);">รองรับ JPG, PNG, PDF</div>
+                      <div style="font-weight:700; font-size:0.95rem;">คลิกเพื่ออัปโหลดไฟล์ภาพสลิป หรือ PDF สรุปยอดขาย</div>
+                      <div style="font-size:0.8rem; color:var(--text-light); margin-top: 0.1rem;">รองรับ JPG, PNG, PDF</div>
                     </div>
                   </label>
                 </div>
-                <div id="shift-uploaded-file-badge" class="uploaded-badge" style="display:none; margin-top:0.5rem;">
+                <div id="shift-uploaded-file-badge" class="uploaded-badge" style="display:none; margin-top:0.75rem;">
                   <i class="fa-regular fa-file" id="shift-badge-file-icon"></i>
                   <span id="shift-badge-file-name">filename.pdf</span>
                   <button type="button" class="btn-remove-file" onclick="removeShiftUploadedAttachment()">&times;</button>
