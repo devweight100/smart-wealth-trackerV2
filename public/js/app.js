@@ -3112,6 +3112,10 @@ window.closeDailyAlertModal = closeDailyAlertModal;
 State.shiftClosings = JSON.parse(localStorage.getItem('smart_wealth_shift_closings') || '[]');
 State.shiftPendingFile = null;
 
+function saveShiftClosingsToStorage() {
+  localStorage.setItem('smart_wealth_shift_closings', JSON.stringify(State.shiftClosings || []));
+}
+
 function resetShiftForm() {
   const form = document.getElementById('shift-closing-form');
   if (form) form.reset();
@@ -3676,6 +3680,7 @@ async function deleteShiftClosing(id) {
 }
 
 // Window bindings
+window.saveShiftClosingsToStorage = saveShiftClosingsToStorage;
 window.resetShiftForm = resetShiftForm;
 window.toggleShiftForm = toggleShiftForm;
 window.openShiftClosingModal = openShiftClosingModal;
