@@ -3142,7 +3142,9 @@ function toggleShiftForm(forceShow) {
     resetShiftForm();
     card.style.display = 'block';
     if (btn) btn.innerHTML = '<i class="fa-solid fa-eye-slash mr-1"></i> ซ่อนแบบฟอร์ม';
-    card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setTimeout(() => {
+      card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
   } else {
     card.style.display = 'none';
     if (btn) btn.innerHTML = '<i class="fa-solid fa-plus-circle mr-1"></i> บันทึกปิดกะการขาย';
