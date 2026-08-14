@@ -2689,3 +2689,202 @@ input[readonly] {
   cursor: default !important;
 }
 
+/* ==========================================================================
+   Shift Closing System (เอกสารปิดกะการขาย)
+   ========================================================================== */
+.shift-form-section {
+  background: var(--bg-main);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1rem;
+}
+
+.shift-section-title {
+  font-weight: 700;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.shift-dynamic-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  background: #ffffff;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+}
+
+[data-theme="dark"] .shift-dynamic-row {
+  background: var(--bg-card);
+}
+
+.shift-dynamic-row select,
+.shift-dynamic-row input {
+  padding: 0.35rem 0.5rem !important;
+  font-size: 0.82rem !important;
+}
+
+.btn-remove-row {
+  background: transparent;
+  border: none;
+  color: var(--rose);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+}
+
+.btn-remove-row:hover {
+  background: rgba(244, 63, 94, 0.1);
+}
+
+/* Live Summary Card inside Shift Modal */
+.shift-live-summary-card {
+  background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+  border-radius: var(--radius-md);
+  padding: 1rem 1.25rem;
+  color: #ffffff;
+  box-shadow: var(--shadow-md);
+}
+
+.shift-live-summary-card .summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem 1.25rem;
+}
+
+.shift-live-summary-card .summary-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.shift-live-summary-card .summary-item.main-net {
+  grid-column: span 2;
+  border-top: 1px solid rgba(255,255,255,0.15);
+  padding-top: 0.6rem;
+  margin-top: 0.2rem;
+}
+
+.shift-live-summary-card .summary-label {
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+
+.shift-live-summary-card .summary-val {
+  font-size: 1.1rem;
+}
+
+.shift-live-summary-card .main-net .summary-label {
+  font-size: 0.85rem;
+  color: #cbd5e1;
+}
+
+.shift-live-summary-card .main-net .summary-val {
+  font-size: 1.4rem;
+  color: #38bdf8;
+}
+
+/* Document Viewer Card (Printable Sheet) */
+.shift-doc-paper {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 1.75rem;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+  color: #1e293b;
+  font-family: var(--font-primary);
+}
+
+[data-theme="dark"] .shift-doc-paper {
+  background: #0f172a;
+  border-color: #334155;
+  color: #f8fafc;
+}
+
+.shift-doc-header {
+  border-bottom: 2px dashed #cbd5e1;
+  padding-bottom: 1rem;
+  margin-bottom: 1.25rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.shift-doc-title {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.shift-doc-meta {
+  font-size: 0.82rem;
+  color: #64748b;
+  text-align: right;
+  line-height: 1.4;
+}
+
+.shift-doc-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1.25rem;
+  font-size: 0.875rem;
+}
+
+.shift-doc-table th {
+  background: #f8fafc;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 2px solid #e2e8f0;
+  font-weight: 700;
+  text-align: left;
+}
+
+[data-theme="dark"] .shift-doc-table th {
+  background: #1e293b;
+  border-bottom-color: #475569;
+}
+
+.shift-doc-table td {
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+[data-theme="dark"] .shift-doc-table td {
+  border-bottom-color: #334155;
+}
+
+.shift-doc-footer-summary {
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  margin-top: 1rem;
+}
+
+[data-theme="dark"] .shift-doc-footer-summary {
+  background: #1e293b;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #modal-shift-document-view,
+  #modal-shift-document-view * {
+    visibility: visible;
+  }
+  #modal-shift-document-view {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+  .modal-header, .modal-footer {
+    display: none !important;
+  }
+}
+
