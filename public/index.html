@@ -450,20 +450,137 @@
 
         <!-- 2.1 VIEW: SHIFT CLOSING (เอกสารปิดกะการขาย) -->
         <section class="tab-view" id="view-shift-closing">
-          <div class="view-header">
+          <div class="view-header mb-4">
             <div>
               <h2 class="view-title"><i class="fa-solid fa-file-invoice-dollar text-indigo"></i> เอกสารปิดกะการขาย</h2>
-              <p class="view-subtitle">จัดการและดูใบสรุปการปิดกะขายประจำวัน รายรับเงินสด/เงินโอน และค่าใช้จ่าย</p>
-            </div>
-            <div class="header-actions">
-              <button class="btn btn-primary" onclick="openShiftClosingModal()">
-                <i class="fa-solid fa-plus-circle mr-1"></i> บันทึกปิดกะการขาย
-              </button>
+              <p class="view-subtitle">บันทึกใบสรุปการปิดกะขายประจำวัน รายรับเงินสด/เงินโอน และค่าใช้จ่าย</p>
             </div>
           </div>
 
+          <!-- Main Page Shift Closing Form Card -->
+          <div class="content-card mb-6">
+            <div class="card-header flex-between">
+              <h4 class="card-title"><i class="fa-solid fa-file-signature text-indigo"></i> บันทึกเอกสารปิดกะการขาย</h4>
+              <button type="button" class="btn btn-outline btn-xs" onclick="resetShiftForm()"><i class="fa-solid fa-rotate-left"></i> ล้างข้อมูลฟอร์ม</button>
+            </div>
+
+            <form id="shift-closing-form" class="premium-form" onsubmit="handleShiftClosingSubmit(event)" style="padding: 1.25rem 1.5rem;">
+              
+              <!-- 0. Date & Shift Name -->
+              <div class="form-row-2 mb-4">
+                <div class="form-group">
+                  <label for="shift-date" class="required">วันที่ทำรายการปิดกะ</label>
+                  <input type="date" id="shift-date" required>
+                </div>
+                <div class="form-group">
+                  <label for="shift-name" class="required">ชื่อกะ / ผู้บันทึก</label>
+                  <input type="text" id="shift-name" placeholder="เช่น ปิดกะเย็น, กะประจำวัน (แอดมิน)" required>
+                </div>
+              </div>
+
+              <!-- 1. Section 1: Cash Sales -->
+              <div class="shift-section-box mb-4">
+                <div class="shift-section-title text-emerald mb-2">
+                  <i class="fa-solid fa-money-bill-wave"></i> 1. รายรับเงินสด (Cash Sales)
+                </div>
+                <div class="form-group" style="max-width: 400px;">
+                  <div class="input-prefix-group">
+                    <span class="input-prefix">฿</span>
+                    <input type="number" id="shift-cash-amount" step="0.01" min="0" placeholder="0.00" oninput="calculateShiftLiveSummary()">
+                  </div>
+                </div>
+              </div>
+
+              <!-- 2. Section 2: Transfer Incomes (Multi Accounts) -->
+              <div class="shift-section-box mb-4">
+                <div class="flex-between mb-2" style="align-items: center;">
+                  <div class="shift-section-title text-indigo">
+                    <i class="fa-solid fa-credit-card"></i> 2. รายรับเงินโอน (แยกตามบัญชีธนาคาร)
+                  </div>
+                  <button type="button" class="btn btn-outline btn-xs" onclick="addShiftTransferAccountRow()">
+                    <i class="fa-solid fa-plus"></i> เพิ่มบัญชีรับเงินโอน
+                  </button>
+                </div>
+                <div id="shift-transfer-rows-container" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                  <!-- Dynamic transfer rows -->
+                </div>
+              </div>
+
+              <!-- 3. Section 3: Expenses Incurred -->
+              <div class="shift-section-box mb-4">
+                <div class="flex-between mb-2" style="align-items: center;">
+                  <div class="shift-section-title text-rose">
+                    <i class="fa-solid fa-receipt"></i> 3. ค่าใช้จ่ายระหว่างวัน (Expenses)
+                  </div>
+                  <button type="button" class="btn btn-outline btn-xs" onclick="addShiftExpenseRow()">
+                    <i class="fa-solid fa-plus"></i> เพิ่มรายการรายจ่าย
+                  </button>
+                </div>
+                <div id="shift-expense-rows-container" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                  <!-- Dynamic expense rows -->
+                </div>
+              </div>
+
+              <!-- 4. Section 4: File Upload Zone (Attached File at the bottom) -->
+              <div class="shift-section-box mb-4">
+                <div class="shift-section-title text-slate mb-2">
+                  <i class="fa-solid fa-paperclip"></i> 4. เอกสารแนบ (สลิปสรุป / PDF รายงาน POS)
+                </div>
+                <div class="attachment-upload-zone" id="shift-attachment-upload-zone" style="padding: 0.75rem 1rem;">
+                  <input type="file" id="shift-file-input" accept="image/*,application/pdf" style="display:none;" onchange="handleShiftFileSelect(event)">
+                  <label for="shift-file-input" class="upload-label" style="cursor: pointer; display: flex; align-items: center; gap: 0.75rem; justify-content: center; width: 100%;">
+                    <i class="fa-solid fa-cloud-arrow-up text-indigo upload-icon" style="font-size: 1.25rem;"></i>
+                    <div>
+                      <div style="font-weight:700; font-size:0.85rem;">คลิกเพื่ออัปโหลดไฟล์ภาพสลิป หรือ PDF สรุปยอดขาย</div>
+                      <div style="font-size:0.75rem; color:var(--text-light);">รองรับ JPG, PNG, PDF</div>
+                    </div>
+                  </label>
+                </div>
+                <div id="shift-uploaded-file-badge" class="uploaded-badge" style="display:none; margin-top:0.5rem;">
+                  <i class="fa-regular fa-file" id="shift-badge-file-icon"></i>
+                  <span id="shift-badge-file-name">filename.pdf</span>
+                  <button type="button" class="btn-remove-file" onclick="removeShiftUploadedAttachment()">&times;</button>
+                </div>
+              </div>
+
+              <!-- 5. Live Summary Bar -->
+              <div class="shift-live-bar mb-4">
+                <div class="shift-live-pill">
+                  <span class="pill-lbl">ขายเงินสด</span>
+                  <span class="pill-val text-emerald" id="live-shift-cash">฿0.00</span>
+                </div>
+                <div class="shift-live-pill">
+                  <span class="pill-lbl">ขายเงินโอน</span>
+                  <span class="pill-val text-indigo" id="live-shift-transfer">฿0.00</span>
+                </div>
+                <div class="shift-live-pill">
+                  <span class="pill-lbl">รวมรายรับ</span>
+                  <span class="pill-val text-emerald" id="live-shift-total-inc">฿0.00</span>
+                </div>
+                <div class="shift-live-pill">
+                  <span class="pill-lbl">ค่าใช้จ่าย</span>
+                  <span class="pill-val text-rose" id="live-shift-total-exp">฿0.00</span>
+                </div>
+                <div class="shift-live-pill" style="border-left: 1px solid var(--border-color); padding-left: 1rem;">
+                  <span class="pill-lbl" style="font-weight:700; color:var(--text-main);">เงินคงเหลือสุทธิกะ</span>
+                  <span class="pill-val text-indigo" id="live-shift-net" style="font-size:1.2rem; font-weight:800;">฿0.00</span>
+                </div>
+              </div>
+
+              <!-- Submit Button -->
+              <div class="form-actions-right">
+                <button type="submit" class="btn btn-primary btn-lg">
+                  <i class="fa-solid fa-floppy-disk mr-1"></i> บันทึกเอกสารปิดกะการขาย
+                </button>
+              </div>
+
+            </form>
+          </div>
+
+          <!-- History Table Header & Filters -->
           <div class="content-card mb-4" style="padding: 0.75rem 1rem;">
             <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+              <h4 class="card-title" style="margin: 0; font-size: 0.95rem;"><i class="fa-solid fa-list text-indigo"></i> ประวัติเอกสารปิดกะการขาย</h4>
               <div style="flex: 1; min-width: 200px;">
                 <input type="text" id="shift-search-input" class="form-control" placeholder="ค้นหาตามชื่อกะ, ผู้บันทึก หรือหมายเหตุ..." oninput="refreshShiftClosingsTable()">
               </div>
@@ -474,6 +591,7 @@
             </div>
           </div>
 
+          <!-- History Table Card -->
           <div class="content-card">
             <div class="table-container scrollbar">
               <table class="premium-table">
@@ -1184,124 +1302,7 @@
     </div>
   </div>
 
-  <!-- Modal: Shift Closing Form -->
-  <div class="modal-backdrop" id="modal-shift-closing">
-    <div class="modal-card modal-tx modal-shift">
-      <div class="modal-header">
-        <h3 class="modal-title" id="shift-modal-title"><i class="fa-solid fa-file-signature text-indigo"></i> บันทึกเอกสารปิดกะการขาย</h3>
-        <button class="modal-close" onclick="closeShiftClosingModal()">&times;</button>
-      </div>
-      
-      <form id="shift-closing-form" class="premium-form" onsubmit="handleShiftClosingSubmit(event)">
-        <div class="modal-body">
-          
-          <!-- Header Info Row -->
-          <div class="form-row-2">
-            <div class="form-group">
-              <label for="shift-date" class="required">วันที่ทำรายการปิดกะ</label>
-              <input type="date" id="shift-date" required>
-            </div>
-            <div class="form-group">
-              <label for="shift-name" class="required">ชื่อกะ / ผู้บันทึก</label>
-              <input type="text" id="shift-name" placeholder="เช่น ปิดกะเย็น, กะประจำวัน (แอดมิน)" required>
-            </div>
-          </div>
 
-          <!-- Middle Row 2 Columns: Left (Cash + Upload), Right (Transfer Accounts) -->
-          <div class="form-row-2">
-            <!-- Left Column: Cash Sales & File Upload -->
-            <div class="shift-section-box" style="display:flex; flex-direction:column; gap:0.5rem;">
-              <div class="shift-section-title text-emerald">
-                <i class="fa-solid fa-money-bill-wave"></i> 1. รายรับเงินสด (Cash)
-              </div>
-              <div class="form-group">
-                <div class="input-prefix-group">
-                  <span class="input-prefix">฿</span>
-                  <input type="number" id="shift-cash-amount" step="0.01" min="0" placeholder="0.00" oninput="calculateShiftLiveSummary()">
-                </div>
-              </div>
-
-              <div class="shift-section-title text-slate" style="margin-top:0.2rem; font-size:0.8rem;">
-                <i class="fa-solid fa-paperclip"></i> แนบสลิปสรุป / PDF POS
-              </div>
-              <div class="attachment-upload-zone" id="shift-attachment-upload-zone" style="padding:0.4rem 0.75rem;">
-                <input type="file" id="shift-file-input" accept="image/*,application/pdf" style="display:none;" onchange="handleShiftFileSelect(event)">
-                <label for="shift-file-input" class="upload-label" style="cursor: pointer; display: flex; align-items: center; gap: 0.5rem; justify-content: center; width: 100%;">
-                  <i class="fa-solid fa-cloud-arrow-up text-indigo upload-icon" style="font-size: 1.1rem;"></i>
-                  <span style="font-weight:600; font-size:0.78rem;">อัปโหลดรูปภาพสลิป หรือ PDF</span>
-                </label>
-              </div>
-              <div id="shift-uploaded-file-badge" class="uploaded-badge" style="display:none; padding:0.25rem 0.5rem; font-size:0.75rem;">
-                <i class="fa-regular fa-file" id="shift-badge-file-icon"></i>
-                <span id="shift-badge-file-name" style="max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">filename.pdf</span>
-                <button type="button" class="btn-remove-file" onclick="removeShiftUploadedAttachment()">&times;</button>
-              </div>
-            </div>
-
-            <!-- Right Column: Transfer Incomes (Multi Accounts) -->
-            <div class="shift-section-box" style="display:flex; flex-direction:column; gap:0.4rem;">
-              <div class="flex-between" style="align-items: center;">
-                <div class="shift-section-title text-indigo">
-                  <i class="fa-solid fa-credit-card"></i> 2. รายรับเงินโอน (ตามบัญชี)
-                </div>
-                <button type="button" class="btn btn-outline btn-xs" onclick="addShiftTransferAccountRow()">
-                  <i class="fa-solid fa-plus"></i> เพิ่มบัญชี
-                </button>
-              </div>
-              <div id="shift-transfer-rows-container" style="display: flex; flex-direction: column; gap: 0.35rem; max-height: 120px; overflow-y: auto;">
-                <!-- Dynamic transfer rows -->
-              </div>
-            </div>
-          </div>
-
-          <!-- Section 3: Shift Expenses -->
-          <div class="shift-section-box" style="display:flex; flex-direction:column; gap:0.4rem;">
-            <div class="flex-between" style="align-items: center;">
-              <div class="shift-section-title text-rose">
-                <i class="fa-solid fa-receipt"></i> 3. ค่าใช้จ่ายระหว่างวัน (Expenses)
-              </div>
-              <button type="button" class="btn btn-outline btn-xs" onclick="addShiftExpenseRow()">
-                <i class="fa-solid fa-plus"></i> เพิ่มรายการรายจ่าย
-              </button>
-            </div>
-            <div id="shift-expense-rows-container" style="display: flex; flex-direction: column; gap: 0.35rem; max-height: 110px; overflow-y: auto;">
-              <!-- Dynamic expense rows -->
-            </div>
-          </div>
-
-          <!-- Section 4: Compact Live Summary Bar -->
-          <div class="shift-live-bar">
-            <div class="shift-live-pill">
-              <span class="pill-lbl">ขายเงินสด</span>
-              <span class="pill-val text-emerald" id="live-shift-cash">฿0.00</span>
-            </div>
-            <div class="shift-live-pill">
-              <span class="pill-lbl">ขายเงินโอน</span>
-              <span class="pill-val text-indigo" id="live-shift-transfer">฿0.00</span>
-            </div>
-            <div class="shift-live-pill">
-              <span class="pill-lbl">รวมรายรับ</span>
-              <span class="pill-val text-emerald" id="live-shift-total-inc">฿0.00</span>
-            </div>
-            <div class="shift-live-pill">
-              <span class="pill-lbl">ค่าใช้จ่าย</span>
-              <span class="pill-val text-rose" id="live-shift-total-exp">฿0.00</span>
-            </div>
-            <div class="shift-live-pill" style="border-left: 1px solid var(--border-color); padding-left: 0.75rem;">
-              <span class="pill-lbl" style="font-weight:700; color:var(--text-main);">เงินคงเหลือสุทธิกะ</span>
-              <span class="pill-val text-indigo" id="live-shift-net" style="font-size:1.1rem; font-weight:800;">฿0.00</span>
-            </div>
-          </div>
-
-        </div>
-
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline" onclick="closeShiftClosingModal()">ยกเลิก</button>
-          <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk mr-1"></i> บันทึกเอกสารปิดกะ</button>
-        </div>
-      </form>
-    </div>
-  </div>
 
   <!-- Modal: Shift Document Viewer -->
   <div class="modal-backdrop" id="modal-shift-document-view">

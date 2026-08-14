@@ -3112,34 +3112,30 @@ window.closeDailyAlertModal = closeDailyAlertModal;
 State.shiftClosings = JSON.parse(localStorage.getItem('smart_wealth_shift_closings') || '[]');
 State.shiftPendingFile = null;
 
-function saveShiftClosingsToStorage() {
-  localStorage.setItem('smart_wealth_shift_closings', JSON.stringify(State.shiftClosings || []));
+function resetShiftForm() {
+  const form = document.getElementById('shift-closing-form');
+  if (form) form.reset();
+  if (document.getElementById('shift-date')) document.getElementById('shift-date').value = new Date().toLocaleDateString('sv-SE');
+  if (document.getElementById('shift-name')) document.getElementById('shift-name').value = 'ปิดกะประจำวัน';
+  if (document.getElementById('shift-cash-amount')) document.getElementById('shift-cash-amount').value = '';
+  
+  const trContainer = document.getElementById('shift-transfer-rows-container');
+  const expContainer = document.getElementById('shift-expense-rows-container');
+  if (trContainer) trContainer.innerHTML = '';
+  if (expContainer) expContainer.innerHTML = '';
+  
+  addShiftTransferAccountRow();
+  addShiftExpenseRow();
+  removeShiftUploadedAttachment();
+  calculateShiftLiveSummary();
 }
 
 function openShiftClosingModal() {
-  document.getElementById('shift-closing-form').reset();
-  document.getElementById('shift-date').value = new Date().toLocaleDateString('sv-SE');
-  document.getElementById('shift-name').value = 'ปิดกะประจำวัน';
-  document.getElementById('shift-cash-amount').value = '';
-  
-  // Clear rows
-  document.getElementById('shift-transfer-rows-container').innerHTML = '';
-  document.getElementById('shift-expense-rows-container').innerHTML = '';
-  
-  // Add 1 default row each
-  addShiftTransferAccountRow();
-  addShiftExpenseRow();
-  
-  removeShiftUploadedAttachment();
-  calculateShiftLiveSummary();
-  
-  document.getElementById('modal-shift-closing').classList.add('active');
-  document.body.classList.add('modal-open');
+  resetShiftForm();
 }
 
 function closeShiftClosingModal() {
-  document.getElementById('modal-shift-closing').classList.remove('active');
-  document.body.classList.remove('modal-open');
+  // Modal closed / view stay
 }
 
 function addShiftTransferAccountRow() {
@@ -3152,17 +3148,24 @@ function addShiftTransferAccountRow() {
   }
 
   const container = document.getElementById('shift-transfer-rows-container');
+  if (!container) return;
   const rowId = 'shift-tr-row-' + Date.now() + Math.random().toString(36).substr(2, 4);
   const rowHtml = `
-    <div class="shift-dynamic-row" id="${rowId}">
-      <select class="shift-transfer-acc-select" style="flex: 2;" onchange="calculateShiftLiveSummary()">
-        ${optionsHtml}
-      </select>
-      <div class="input-prefix-group" style="flex: 1.5;">
-        <span class="input-prefix" style="left:0.5rem; font-size:0.8rem;">฿</span>
-        <input type="number" step="0.01" min="0" placeholder="0.00" class="shift-transfer-amount-input" style="padding-left:1.5rem !important;" oninput="calculateShiftLiveSummary()">
+    <div class="shift-dynamic-row" id="${rowId}" style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap;">
+      <div style="flex: 2; min-width: 200px;">
+        <label style="font-size:0.75rem; font-weight:600; color:var(--text-muted); display:block; margin-bottom:0.2rem;">เลือกบัญชีธนาคารรับเงินโอน</label>
+        <select class="shift-transfer-acc-select" style="width:100%;" onchange="calculateShiftLiveSummary()">
+          ${optionsHtml}
+        </select>
       </div>
-      <button type="button" class="btn-remove-row" onclick="document.getElementById('${rowId}').remove(); calculateShiftLiveSummary();" title="ลบแถบนี้">&times;</button>
+      <div style="flex: 1.5; min-width: 150px;">
+        <label style="font-size:0.75rem; font-weight:600; color:var(--text-muted); display:block; margin-bottom:0.2rem;">จำนวนเงินโอน (บาท)</label>
+        <div class="input-prefix-group">
+          <span class="input-prefix">฿</span>
+          <input type="number" step="0.01" min="0" placeholder="0.00" class="shift-transfer-amount-input" oninput="calculateShiftLiveSummary()">
+        </div>
+      </div>
+      <button type="button" class="btn-remove-row" style="margin-top:1.2rem;" onclick="document.getElementById('${rowId}').remove(); calculateShiftLiveSummary();" title="ลบแถบนี้">&times;</button>
     </div>`;
   container.insertAdjacentHTML('beforeend', rowHtml);
 }
@@ -3176,21 +3179,34 @@ function addShiftExpenseRow() {
   accOptions += bankAccounts.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
 
   const container = document.getElementById('shift-expense-rows-container');
+  if (!container) return;
   const rowId = 'shift-exp-row-' + Date.now() + Math.random().toString(36).substr(2, 4);
   const rowHtml = `
-    <div class="shift-dynamic-row" id="${rowId}">
-      <select class="shift-expense-cat-select" style="flex: 1.5;">
-        ${catOptions || '<option value="ค่าใช้จ่ายอื่นๆ">ค่าใช้จ่ายอื่นๆ</option>'}
-      </select>
-      <select class="shift-expense-acc-select" style="flex: 1.5;">
-        ${accOptions}
-      </select>
-      <div class="input-prefix-group" style="flex: 1.2;">
-        <span class="input-prefix" style="left:0.5rem; font-size:0.8rem;">฿</span>
-        <input type="number" step="0.01" min="0" placeholder="0.00" class="shift-expense-amount-input" style="padding-left:1.5rem !important;" oninput="calculateShiftLiveSummary()">
+    <div class="shift-dynamic-row" id="${rowId}" style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap;">
+      <div style="flex: 1.5; min-width: 150px;">
+        <label style="font-size:0.75rem; font-weight:600; color:var(--text-muted); display:block; margin-bottom:0.2rem;">หมวดหมู่รายจ่าย</label>
+        <select class="shift-expense-cat-select" style="width:100%;">
+          ${catOptions || '<option value="ค่าใช้จ่ายอื่นๆ">ค่าใช้จ่ายอื่นๆ</option>'}
+        </select>
       </div>
-      <input type="text" placeholder="หมายเหตุ" class="shift-expense-notes-input" style="flex: 2;">
-      <button type="button" class="btn-remove-row" onclick="document.getElementById('${rowId}').remove(); calculateShiftLiveSummary();" title="ลบแถบนี้">&times;</button>
+      <div style="flex: 1.5; min-width: 150px;">
+        <label style="font-size:0.75rem; font-weight:600; color:var(--text-muted); display:block; margin-bottom:0.2rem;">จ่ายจากบัญชี/เงินสด</label>
+        <select class="shift-expense-acc-select" style="width:100%;">
+          ${accOptions}
+        </select>
+      </div>
+      <div style="flex: 1.2; min-width: 130px;">
+        <label style="font-size:0.75rem; font-weight:600; color:var(--text-muted); display:block; margin-bottom:0.2rem;">จำนวนเงิน (บาท)</label>
+        <div class="input-prefix-group">
+          <span class="input-prefix">฿</span>
+          <input type="number" step="0.01" min="0" placeholder="0.00" class="shift-expense-amount-input" oninput="calculateShiftLiveSummary()">
+        </div>
+      </div>
+      <div style="flex: 2; min-width: 180px;">
+        <label style="font-size:0.75rem; font-weight:600; color:var(--text-muted); display:block; margin-bottom:0.2rem;">หมายเหตุ</label>
+        <input type="text" placeholder="ระบุหมายเหตุ (ถ้ามี)" class="shift-expense-notes-input" style="width:100%;">
+      </div>
+      <button type="button" class="btn-remove-row" style="margin-top:1.2rem;" onclick="document.getElementById('${rowId}').remove(); calculateShiftLiveSummary();" title="ลบแถบนี้">&times;</button>
     </div>`;
   container.insertAdjacentHTML('beforeend', rowHtml);
 }
@@ -3633,6 +3649,7 @@ async function deleteShiftClosing(id) {
 }
 
 // Window bindings
+window.resetShiftForm = resetShiftForm;
 window.openShiftClosingModal = openShiftClosingModal;
 window.closeShiftClosingModal = closeShiftClosingModal;
 window.addShiftTransferAccountRow = addShiftTransferAccountRow;
