@@ -46,6 +46,14 @@
           <i class="fa-solid fa-list-check"></i>
           <span>บันทึกรายรับ-รายจ่าย</span>
         </button>
+        <button class="nav-btn" data-target="future" id="btn-nav-future">
+          <i class="fa-regular fa-clock"></i>
+          <span>รายจ่ายล่วงหน้า</span>
+        </button>
+        <button class="nav-btn" data-target="transfers" id="btn-nav-transfers">
+          <i class="fa-solid fa-money-bill-transfer"></i>
+          <span>ย้ายเงิน</span>
+        </button>
         <button class="nav-btn" data-target="accounts" id="btn-nav-accounts">
           <i class="fa-solid fa-building-columns"></i>
           <span>บัญชีการเงิน</span>
@@ -187,8 +195,8 @@
             </div>
           </div>
 
-          <!-- Upcoming Expense Alerts (Today and Next 7 Days) -->
-          <div id="upcoming-alerts-container"></div>
+          <!-- Upcoming Expense Alerts (Today and Next 7 Days) - Removed -->
+          <!-- <div id="upcoming-alerts-container"></div> -->
 
           <!-- Charts Section Grid -->
           <div class="dashboard-grid-2">
@@ -348,6 +356,92 @@
             </div>
           </div>
 
+        </section>
+
+        <!-- FUTURE EXPENSES VIEW -->
+        <section class="tab-view" id="view-future">
+          <div class="control-bar content-card flex-between" style="flex-wrap: wrap; gap: 1rem; padding: 1.25rem 1.5rem;">
+            <div style="display: flex; gap: 1.5rem; align-items: center;">
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <div class="metric-icon bg-amber-light text-amber" style="width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1rem;">
+                  <i class="fa-regular fa-clock"></i>
+                </div>
+                <div>
+                  <span class="text-xs text-muted" style="display: block; font-weight: 600; font-size: 0.75rem;">รายจ่ายล่วงหน้าค้างจ่าย</span>
+                  <span id="future-summary-pending" style="font-weight: 700; font-size: 1.15rem; color: var(--text-dark);">฿0.00</span>
+                </div>
+              </div>
+              
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <div class="metric-icon bg-rose-light text-rose" style="width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1rem;">
+                  <i class="fa-solid fa-triangle-exclamation"></i>
+                </div>
+                <div>
+                  <span class="text-xs text-muted" style="display: block; font-weight: 600; font-size: 0.75rem;">ยอดเกินกำหนดชำระ</span>
+                  <span id="future-summary-overdue" style="font-weight: 700; font-size: 1.15rem; color: var(--rose);">฿0.00</span>
+                </div>
+              </div>
+            </div>
+            
+            <button class="btn btn-primary" id="btn-add-future-expense">
+              <i class="fa-solid fa-plus"></i> เพิ่มรายจ่ายล่วงหน้า
+            </button>
+          </div>
+
+          <div class="content-card overflow-hidden">
+            <div class="table-container scrollbar">
+              <table class="premium-table" id="future-table">
+                <thead>
+                  <tr>
+                    <th>วันครบกำหนดชำระ / วันที่ชำระ</th>
+                    <th>หมวดหมู่</th>
+                    <th>รายละเอียด</th>
+                    <th>ชำระโดย</th>
+                    <th class="text-right">จำนวนเงิน</th>
+                    <th class="text-center">บิล/สลิป</th>
+                    <th class="text-center">สถานะ</th>
+                    <th class="text-center">การจัดการ</th>
+                  </tr>
+                </thead>
+                <tbody id="future-table-body">
+                  <!-- Dynamic Rows -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- TRANSFERS VIEW -->
+        <section class="tab-view" id="view-transfers">
+          <div class="control-bar content-card flex-between" style="padding: 1.25rem 1.5rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <i class="fa-solid fa-money-bill-transfer text-indigo" style="font-size: 1.25rem;"></i>
+              <span style="font-weight: 700; font-size: 1.1rem; color: var(--text-dark);">ประวัติการย้ายเงิน</span>
+            </div>
+            <button class="btn btn-primary" id="btn-add-money-transfer">
+              <i class="fa-solid fa-plus"></i> บันทึกการย้ายเงิน
+            </button>
+          </div>
+
+          <div class="content-card overflow-hidden">
+            <div class="table-container scrollbar">
+              <table class="premium-table" id="transfers-table">
+                <thead>
+                  <tr>
+                    <th>วันที่โอนเงิน</th>
+                    <th>จากบัญชี (ต้นทาง)</th>
+                    <th>ไปยังบัญชี (ปลายทาง)</th>
+                    <th class="text-right">จำนวนเงินที่ย้าย</th>
+                    <th>หมายเหตุ / รายละเอียด</th>
+                    <th class="text-center">การจัดการ</th>
+                  </tr>
+                </thead>
+                <tbody id="transfers-table-body">
+                  <!-- Dynamic Rows -->
+                </tbody>
+              </table>
+            </div>
+          </div>
         </section>
 
         <!-- 3. ACCOUNTS VIEW -->

@@ -102,6 +102,10 @@ async function reloadAppData() {
     refreshDashboard();
     console.log('[SWT] refreshTransactionsTable...');
     refreshTransactionsTable();
+    console.log('[SWT] refreshFutureExpensesTable...');
+    refreshFutureExpensesTable();
+    console.log('[SWT] refreshTransfersTable...');
+    refreshTransfersTable();
     console.log('[SWT] refreshAccountsList...');
     refreshAccountsList();
     console.log('[SWT] refreshCategoriesLists...');
@@ -308,55 +312,10 @@ function refreshDashboard() {
   document.getElementById('income-month-name').innerText = `สะสมเฉพาะเดือน${currentMonthTh}`;
   document.getElementById('expense-month-name').innerText = `สะสมเฉพาะเดือน${currentMonthTh}`;
 
-  // Upcoming Alerts Container logic (Today & Next 7 Days)
+  // Upcoming Alerts Container logic (Today & Next 7 Days) - Disabled per requirement
   const alertsContainer = document.getElementById('upcoming-alerts-container');
-  alertsContainer.innerHTML = '';
-
-  const sevenDaysLater = new Date();
-  sevenDaysLater.setDate(sevenDaysLater.getDate() + 7);
-  const sevenDaysLaterStr = sevenDaysLater.toLocaleDateString('sv-SE');
-
-  // Filter future expenses for today and next 7 days (ONLY type === 'future' and status !== 'paid')
-  const todayExpenses        = txList.filter(t => t.type === 'future' && t.status !== 'paid' && (t.dueDate || t.date) === todayStr);
-  const upcoming7DaysExpenses = txList.filter(t => t.type === 'future' && t.status !== 'paid' && (t.dueDate || t.date) > todayStr && (t.dueDate || t.date) <= sevenDaysLaterStr);
-
-  if (todayExpenses.length > 0 || upcoming7DaysExpenses.length > 0) {
-    let alertsHtml = '<div class="upcoming-alert-container">';
-    
-    // 1. Group today's scheduled expenses
-    if (todayExpenses.length > 0) {
-      const todayTotal = todayExpenses.reduce((sum, t) => sum + Number(t.amount || 0), 0);
-      alertsHtml += `
-        <div class="upcoming-alert alert-danger" style="cursor: pointer;" onclick="openFutureDetailsModal()">
-          <i class="fa-solid fa-triangle-exclamation upcoming-alert-icon"></i>
-          <div class="upcoming-alert-info">
-            <div class="upcoming-alert-text">
-              <span class="upcoming-alert-title">ครบกำหนดจ่ายล่วงหน้าวันนี้! (ยอดรวมทั้งหมด)</span>
-              <span class="upcoming-alert-desc">มีทั้งหมด ${todayExpenses.length} รายการที่ต้องชำระในวันนี้</span>
-            </div>
-            <span class="upcoming-alert-value">-${formatCurrency(todayTotal)}</span>
-          </div>
-        </div>`;
-    }
-
-    // 2. Render 7 days ahead
-    upcoming7DaysExpenses.forEach(t => {
-      const dateTh = formatDateThShort(t.dueDate || t.date);
-      alertsHtml += `
-        <div class="upcoming-alert alert-warning">
-          <i class="fa-regular fa-bell upcoming-alert-icon"></i>
-          <div class="upcoming-alert-info">
-            <div class="upcoming-alert-text">
-              <span class="upcoming-alert-title">รายจ่ายล่วงหน้ากำลังจะถึง (กำหนดจ่าย: ${dateTh})</span>
-              <span class="upcoming-alert-desc">${t.notes || t.category} (${t.category})</span>
-            </div>
-            <span class="upcoming-alert-value">-${formatCurrency(t.amount)}</span>
-          </div>
-        </div>`;
-    });
-
-    alertsHtml += '</div>';
-    alertsContainer.innerHTML = alertsHtml;
+  if (alertsContainer) {
+    alertsContainer.innerHTML = '';
   }
 
   // Update Dynamic Charts
@@ -794,6 +753,267 @@ function renderPaginationControls(totalPages) {
   pagDiv.appendChild(nextBtn);
 }
 
+// Helper for bank badge styling
+function getBankBadgeStyle(bankName) {
+  let color = '#64748b'; // default slate
+  if (bankName === 'กสิกรไทย') color = '#00a950';
+  else if (bankName === 'ไทยพาณิชย์') color = '#4e2e7f';
+  else if (bankName === 'กรุงเทพ') color = '#1e3a8a';
+  else if (bankName === 'กรุงไทย') color = '#00a1f1';
+  else if (bankName === 'กรุงศรีอยุธยา') color = '#8c7355';
+  else if (bankName === 'ทหารไทยธนชาต') color = '#0056b3';
+  else if (bankName === 'ออมสิน') color = '#ec4899';
+  else if (bankName === 'เงินสด') color = '#10b981';
+
+  return `background-color: ${color}1a; color: ${color}; border: 1px solid ${color}26; font-size: 0.75rem; font-weight: 700; padding: 0.25rem 0.65rem; border-radius: 9999px; display: inline-flex; align-items: center; line-height: 1;`;
+}
+
+// --- 2.1 FUTURE EXPENSES PAGE REFRESH ---
+function refreshFutureExpensesTable() {
+  const tbody = document.getElementById('future-table-body');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+
+  const todayStr = new Date().toLocaleDateString('sv-SE');
+  const txList = Array.isArray(State.transactions) ? State.transactions : [];
+  
+  // Filter for future expenses
+  const futureTx = txList.filter(t => t.type === 'future');
+  
+  // Sort future expenses:
+  // Unpaid (pending) sorted by dueDate/date ascending (soonest first)
+  // Paid (paid) sorted by date descending (latest paid first)
+  // Group pending at top, paid at bottom
+  futureTx.sort((a, b) => {
+    const aPaid = a.status === 'paid';
+    const bPaid = b.status === 'paid';
+    
+    if (!aPaid && bPaid) return -1;
+    if (aPaid && !bPaid) return 1;
+    
+    if (!aPaid) {
+      const aDue = a.dueDate || a.date;
+      const bDue = b.dueDate || b.date;
+      return aDue.localeCompare(bDue);
+    } else {
+      return b.date.localeCompare(a.date);
+    }
+  });
+
+  // Calculate metrics for future expenses
+  const pendingFuture = futureTx.filter(t => t.status !== 'paid');
+  const totalPending = pendingFuture.reduce((sum, t) => sum + Number(t.amount || 0), 0);
+  
+  const overdueFuture = pendingFuture.filter(t => (t.dueDate || t.date) < todayStr);
+  const totalOverdue = overdueFuture.reduce((sum, t) => sum + Number(t.amount || 0), 0);
+
+  // Update mini metrics in future view
+  const pendingEl = document.getElementById('future-summary-pending');
+  if (pendingEl) pendingEl.innerText = formatCurrency(totalPending);
+  const overdueEl = document.getElementById('future-summary-overdue');
+  if (overdueEl) overdueEl.innerText = formatCurrency(totalOverdue);
+
+  if (futureTx.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="8" class="text-center py-12 text-slate">
+          <i class="fa-regular fa-folder-open text-3xl mb-3 block text-slate-400"></i>
+          ไม่พบรายการรายจ่ายล่วงหน้า
+        </td>
+      </tr>`;
+    return;
+  }
+
+  const today = new Date();
+  today.setHours(0,0,0,0);
+
+  futureTx.forEach(t => {
+    const acc = State.accounts.find(a => a.id === t.accountId);
+    const isPaid = t.status === 'paid';
+    
+    // Urgency styling for unpaid
+    let rowUrgencyClass = '';
+    if (!isPaid) {
+      const parts = (t.dueDate || t.date).split('-');
+      if (parts.length === 3) {
+        const txDate = new Date(parts[0], parts[1] - 1, parts[2]);
+        txDate.setHours(0,0,0,0);
+        const diffTime = txDate - today;
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        if (diffDays < 0) {
+          rowUrgencyClass = 'row-future-overdue';
+        } else if (diffDays === 0) {
+          rowUrgencyClass = 'row-future-today';
+        } else if (diffDays > 0 && diffDays <= 3) {
+          rowUrgencyClass = 'row-future-3days';
+        } else if (diffDays > 3 && diffDays <= 7) {
+          rowUrgencyClass = 'row-future-7days';
+        }
+      }
+    }
+
+    // Status Badge
+    let statusBadge = '';
+    if (isPaid) {
+      statusBadge = '<span class="badge badge-emerald"><i class="fa-solid fa-check mr-1"></i> ชำระแล้ว</span>';
+    } else if ((t.dueDate || t.date) < todayStr) {
+      statusBadge = '<span class="badge badge-rose" style="border:1.5px solid var(--amber);"><i class="fa-solid fa-triangle-exclamation mr-1"></i> เกินกำหนด</span>';
+    } else {
+      statusBadge = '<span class="badge badge-slate"><i class="fa-regular fa-clock mr-1"></i> ค้างชำระ</span>';
+    }
+
+    // Date description
+    const formattedDueDate = formatDateThShort(t.dueDate || t.date);
+    const dateDesc = isPaid 
+      ? `<div><i class="fa-solid fa-calendar-check text-emerald mr-1"></i> ชำระเมื่อ: <strong>${formatDateThShort(t.date)}</strong></div>
+         <div class="table-text-sub">กำหนดชำระ: ${formattedDueDate}</div>`
+      : `<div><i class="fa-regular fa-calendar text-amber mr-1"></i> กำหนดชำระ: <strong>${formattedDueDate}</strong></div>`;
+
+    // Slip link/button
+    let slipCell = '-';
+    if (t.slipUrl) {
+      const isPdf = t.slipUrl.toLowerCase().endsWith('.pdf');
+      const icon = isPdf ? 'fa-regular fa-file-pdf text-rose' : 'fa-regular fa-image text-indigo';
+      slipCell = `
+        <button class="btn-table-attachment" onclick="previewAttachment('${t.slipUrl}')" title="ดูไฟล์แนบ">
+          <i class="${icon}"></i> ดูไฟล์
+        </button>`;
+    }
+
+    // Quick pay button or edit/delete
+    let quickPayBtn = '';
+    if (!isPaid) {
+      quickPayBtn = `
+        <button class="btn-quick-pay" onclick="markAsPaid('${t.id}')" title="ชำระเงินแล้ว" style="margin-right: 0.25rem;">
+          <i class="fa-solid fa-check mr-1"></i> ชำระแล้ว
+        </button>`;
+    }
+
+    const actionCell = `
+      <div style="display:flex; justify-content:center; align-items:center;">
+        ${quickPayBtn}
+        <button class="btn-table-action" onclick="openEditTransactionModal('${t.id}')" title="แก้ไขรายการ" style="margin-right:0.25rem;">
+          <i class="fa-regular fa-edit text-indigo"></i>
+        </button>
+        <button class="btn-table-action" onclick="deleteTransaction('${t.id}')" title="ลบรายการ">
+          <i class="fa-regular fa-trash-can text-rose"></i>
+        </button>
+      </div>`;
+
+    tbody.innerHTML += `
+      <tr class="${rowUrgencyClass}">
+        <td>${dateDesc}</td>
+        <td><span class="badge badge-indigo" style="background-color: var(--primary-light); color: var(--primary); border: 1px solid rgba(79,70,229,0.15);">${t.category}</span></td>
+        <td>
+          <div style="font-weight: 600;">${t.notes || '-'}</div>
+        </td>
+        <td>
+          ${(() => {
+            if (t.paymentMethod === 'Unspecified' || t.accountId === 'acc-unspecified' || !t.accountId) {
+              return `<span class="text-slate">-</span>`;
+            } else if (t.paymentMethod === 'Cash') {
+              return `<span class="badge badge-slate" style="background-color: var(--slate-light); color: var(--slate); border: 1px solid rgba(100, 116, 139, 0.15); font-size: 0.75rem; padding: 0.25rem 0.65rem; border-radius: 9999px;">เงินสด</span>`;
+            } else {
+              return `
+                <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                  <div>
+                    <span class="badge badge-indigo" style="background-color: var(--primary-light); color: var(--primary); border: 1px solid rgba(79,70,229,0.15); font-size: 0.75rem; padding: 0.25rem 0.65rem; border-radius: 9999px;">เงินโอน</span>
+                  </div>
+                  ${acc ? `
+                    <div>
+                      <span style="${getBankBadgeStyle(acc.bankName)}">
+                        ${acc.name}
+                      </span>
+                    </div>` : '<div class="table-text-sub">บัญชีถูกลบ</div>'}
+                </div>`;
+            }
+          })()}
+        </td>
+        <td class="text-amount-exp text-right" style="font-weight:700;">
+          -${formatCurrency(t.amount)}
+        </td>
+        <td class="text-center">${slipCell}</td>
+        <td class="text-center">${statusBadge}</td>
+        <td class="text-center">${actionCell}</td>
+      </tr>`;
+  });
+}
+
+// --- 2.2 TRANSFERS PAGE REFRESH ---
+function refreshTransfersTable() {
+  const tbody = document.getElementById('transfers-table-body');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+
+  const txList = Array.isArray(State.transactions) ? State.transactions : [];
+  
+  // Filter for transfer_out (representing the source row, to display one row per transfer)
+  const transfers = txList.filter(t => t.type === 'transfer_out');
+  
+  // Sort transfers by date descending
+  transfers.sort((a, b) => b.date.localeCompare(a.date));
+
+  if (transfers.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="6" class="text-center py-12 text-slate">
+          <i class="fa-regular fa-folder-open text-3xl mb-3 block text-slate-400"></i>
+          ไม่พบรายการย้ายเงิน
+        </td>
+      </tr>`;
+    return;
+  }
+
+  transfers.forEach(t => {
+    const fromAcc = State.accounts.find(a => a.id === t.accountId);
+    
+    // Find matching transfer_in
+    const otherTx = txList.find(tx => tx.id === t.transferTxId);
+    const toAcc = otherTx ? State.accounts.find(a => a.id === otherTx.accountId) : null;
+
+    const actionCell = `
+      <div style="display:flex; justify-content:center; align-items:center;">
+        <button class="btn-table-action" onclick="openEditTransactionModal('${t.id}')" title="แก้ไขรายการ" style="margin-right:0.25rem;">
+          <i class="fa-regular fa-edit text-indigo"></i>
+        </button>
+        <button class="btn-table-action" onclick="deleteTransaction('${t.id}')" title="ลบรายการ">
+          <i class="fa-regular fa-trash-can text-rose"></i>
+        </button>
+      </div>`;
+
+    tbody.innerHTML += `
+      <tr>
+        <td>
+          <div><i class="fa-regular fa-calendar text-indigo mr-1"></i> ${formatDateThShort(t.date)}</div>
+        </td>
+        <td>
+          ${fromAcc ? `
+            <span style="${getBankBadgeStyle(fromAcc.bankName)}">
+              ${fromAcc.name}
+            </span>` : '-'}
+        </td>
+        <td>
+          ${toAcc ? `
+            <span style="${getBankBadgeStyle(toAcc.bankName)}">
+              ${toAcc.name}
+            </span>` : '-'}
+        </td>
+        <td class="text-amount-future text-right" style="font-weight:700;">
+          ${formatCurrency(t.amount)}
+        </td>
+        <td>
+          <div style="font-weight:600;">${t.notes || 'ย้ายเงินระหว่างบัญชี'}</div>
+        </td>
+        <td class="text-center">${actionCell}</td>
+      </tr>`;
+  });
+}
+
+// Bind to window scope
+window.refreshFutureExpensesTable = refreshFutureExpensesTable;
+window.refreshTransfersTable = refreshTransfersTable;
+
 // 3. ACCOUNTS PAGE REFRESH
 function refreshAccountsList() {
   const container = document.getElementById('accounts-cards-container');
@@ -1058,6 +1278,20 @@ function setupEventListeners() {
     document.getElementById('btn-nav-accounts').click();
     document.getElementById('account-name').focus();
   });
+
+  const btnAddFutureExpense = document.getElementById('btn-add-future-expense');
+  if (btnAddFutureExpense) {
+    btnAddFutureExpense.addEventListener('click', () => {
+      openCreateTransactionModal('future');
+    });
+  }
+
+  const btnAddMoneyTransfer = document.getElementById('btn-add-money-transfer');
+  if (btnAddMoneyTransfer) {
+    btnAddMoneyTransfer.addEventListener('click', () => {
+      openCreateTransactionModal('transfer');
+    });
+  }
 
   // 3. Transactions Filters Handlers
   document.getElementById('tx-search').addEventListener('input', (e) => {
@@ -1538,7 +1772,7 @@ function removeUploadedAttachment() {
 
 // --- Modals Control Handlers ---
 
-function openCreateTransactionModal() {
+function openCreateTransactionModal(defaultType = 'expense') {
   // Reset Form
   document.getElementById('transaction-form').reset();
   document.getElementById('tx-id').value = '';
@@ -1552,16 +1786,16 @@ function openCreateTransactionModal() {
   removeUploadedAttachment();
   
   // Reset type hidden field and select active button
-  document.getElementById('tx-type').value = 'expense';
+  document.getElementById('tx-type').value = defaultType;
   const typeButtons = document.querySelectorAll('.transaction-type-blocks .type-block-btn');
   typeButtons.forEach(btn => {
-    if (btn.getAttribute('data-type') === 'expense') {
+    if (btn.getAttribute('data-type') === defaultType) {
       btn.classList.add('active');
     } else {
       btn.classList.remove('active');
     }
   });
-  handleTypeChange('expense');
+  handleTypeChange(defaultType);
   
   // Set default payment method and update accounts dropdown
   document.getElementById('tx-payment-method').value = 'Transfer';
