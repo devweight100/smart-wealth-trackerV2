@@ -2332,6 +2332,50 @@ body.modal-open {
   overflow: hidden;
 }
 
+/* Compact Modal customizations to fit window perfectly without scrollbar */
+.modal-card.modal-tx {
+  max-width: 720px;
+  max-height: 96vh;
+}
+
+.modal-card.modal-tx .modal-header {
+  padding: 1rem 1.75rem;
+}
+
+.modal-card.modal-tx .modal-footer {
+  padding: 0.85rem 1.75rem;
+}
+
+.modal-card.modal-tx .type-block-btn {
+  flex-direction: row;
+  padding: 0.5rem 0.75rem;
+  gap: 0.35rem;
+}
+
+.modal-card.modal-tx .type-block-btn i {
+  font-size: 1.1rem;
+}
+
+.modal-card.modal-tx .attachment-upload-zone {
+  flex-direction: row;
+  padding: 0.5rem 1.25rem;
+  gap: 0.75rem;
+}
+
+.modal-card.modal-tx .upload-icon {
+  font-size: 1.35rem;
+  margin-bottom: 0;
+}
+
+/* Reduce label margin inside transaction modal */
+.modal-card.modal-tx label {
+  margin-bottom: 0.25rem;
+}
+
+.modal-card.modal-tx .form-group {
+  margin-bottom: 0 !important;
+}
+
 /* ==========================================================================
    Premium POS Style Passcode Login Screen
    ========================================================================== */

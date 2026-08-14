@@ -776,7 +776,7 @@
         <input type="hidden" id="tx-id">
         <input type="hidden" id="tx-slip-url">
         
-        <div class="modal-body scrollbar" style="display: flex; flex-direction: column; gap: 1.25rem; padding: 2rem 2.25rem;">
+        <div class="modal-body scrollbar" style="display: flex; flex-direction: column; gap: 0.75rem; padding: 1.25rem 1.75rem;">
           <div class="form-group mb-4">
             <label class="required" style="font-weight: 700; margin-bottom: 0.5rem; display: block;">ประเภทรายการ</label>
             <div class="transaction-type-blocks">
@@ -873,8 +873,10 @@
             
             <div class="attachment-upload-zone" id="attachment-upload-zone">
               <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
-              <span class="upload-text">คลิกเพื่อเลือกไฟล์ หรือ ลากสลิป/บิลมาวางตรงนี้</span>
-              <span class="upload-subtext">ไฟล์ประเภท PDF, PNG, JPG, JPEG (ขนาดไม่เกิน 10MB)</span>
+              <div style="display: flex; flex-direction: column; text-align: left; gap: 0.15rem;">
+                <span class="upload-text" style="font-size: 0.8rem;">คลิกเพื่อเลือกไฟล์ หรือ ลากสลิป/บิลมาวางตรงนี้</span>
+                <span class="upload-subtext" style="font-size: 0.68rem;">ไฟล์ประเภท PDF, PNG, JPG, JPEG (ขนาดไม่เกิน 10MB)</span>
+              </div>
               <input type="file" id="tx-attachment-input" accept=".jpg,.jpeg,.png,.pdf" style="display: none;">
             </div>
             
