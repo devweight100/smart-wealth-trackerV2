@@ -3131,23 +3131,29 @@ function resetShiftForm() {
 }
 
 function toggleShiftForm(forceShow) {
-  const card = document.getElementById('shift-form-card');
-  const btn = document.getElementById('btn-toggle-shift-form');
-  if (!card) return;
+  try {
+    const card = document.getElementById('shift-form-card');
+    const btn = document.getElementById('btn-toggle-shift-form');
+    if (!card) return;
 
-  const isVisible = card.style.display !== 'none';
-  const shouldShow = forceShow !== undefined ? forceShow : !isVisible;
+    const isHidden = card.style.display === 'none' || window.getComputedStyle(card).display === 'none';
+    const shouldShow = forceShow !== undefined ? forceShow : isHidden;
 
-  if (shouldShow) {
-    resetShiftForm();
-    card.style.display = 'block';
-    if (btn) btn.innerHTML = '<i class="fa-solid fa-eye-slash mr-1"></i> ซ่อนแบบฟอร์ม';
-    setTimeout(() => {
-      card.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 50);
-  } else {
-    card.style.display = 'none';
-    if (btn) btn.innerHTML = '<i class="fa-solid fa-plus-circle mr-1"></i> บันทึกปิดกะการขาย';
+    if (shouldShow) {
+      resetShiftForm();
+      card.style.display = 'block';
+      if (btn) btn.innerHTML = '<i class="fa-solid fa-eye-slash mr-1"></i> ซ่อนแบบฟอร์ม';
+      setTimeout(() => {
+        card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 50);
+    } else {
+      card.style.display = 'none';
+      if (btn) btn.innerHTML = '<i class="fa-solid fa-plus-circle mr-1"></i> บันทึกปิดกะการขาย';
+    }
+  } catch (err) {
+    console.error('Error toggling shift form:', err);
+    const card = document.getElementById('shift-form-card');
+    if (card) card.style.display = 'block';
   }
 }
 
