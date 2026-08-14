@@ -3130,12 +3130,31 @@ function resetShiftForm() {
   calculateShiftLiveSummary();
 }
 
+function toggleShiftForm(forceShow) {
+  const card = document.getElementById('shift-form-card');
+  const btn = document.getElementById('btn-toggle-shift-form');
+  if (!card) return;
+
+  const isVisible = card.style.display !== 'none';
+  const shouldShow = forceShow !== undefined ? forceShow : !isVisible;
+
+  if (shouldShow) {
+    resetShiftForm();
+    card.style.display = 'block';
+    if (btn) btn.innerHTML = '<i class="fa-solid fa-eye-slash mr-1"></i> ซ่อนแบบฟอร์ม';
+    card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } else {
+    card.style.display = 'none';
+    if (btn) btn.innerHTML = '<i class="fa-solid fa-plus-circle mr-1"></i> บันทึกปิดกะการขาย';
+  }
+}
+
 function openShiftClosingModal() {
-  resetShiftForm();
+  toggleShiftForm(true);
 }
 
 function closeShiftClosingModal() {
-  // Modal closed / view stay
+  toggleShiftForm(false);
 }
 
 function addShiftTransferAccountRow() {
@@ -3389,7 +3408,7 @@ async function handleShiftClosingSubmit(e) {
     saveShiftClosingsToStorage();
 
     await reloadAppData();
-    closeShiftClosingModal();
+    toggleShiftForm(false);
     refreshShiftClosingsTable();
     alert('✅ บันทึกเอกสารปิดกะการขายสำเร็จ! ข้อมูลถูกนำไปกระจายลงบันทึกรายรับ-รายจ่ายเรียบร้อยแล้ว');
   } catch (err) {
@@ -3650,6 +3669,7 @@ async function deleteShiftClosing(id) {
 
 // Window bindings
 window.resetShiftForm = resetShiftForm;
+window.toggleShiftForm = toggleShiftForm;
 window.openShiftClosingModal = openShiftClosingModal;
 window.closeShiftClosingModal = closeShiftClosingModal;
 window.addShiftTransferAccountRow = addShiftTransferAccountRow;

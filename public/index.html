@@ -453,15 +453,23 @@
           <div class="view-header mb-4">
             <div>
               <h2 class="view-title"><i class="fa-solid fa-file-invoice-dollar text-indigo"></i> เอกสารปิดกะการขาย</h2>
-              <p class="view-subtitle">บันทึกใบสรุปการปิดกะขายประจำวัน รายรับเงินสด/เงินโอน และค่าใช้จ่าย</p>
+              <p class="view-subtitle">ประวัติเอกสารปิดกะการขายประจำวัน รายรับเงินสด/เงินโอน และค่าใช้จ่าย</p>
+            </div>
+            <div class="header-actions">
+              <button class="btn btn-primary" id="btn-toggle-shift-form" onclick="toggleShiftForm()">
+                <i class="fa-solid fa-plus-circle mr-1"></i> บันทึกปิดกะการขาย
+              </button>
             </div>
           </div>
 
-          <!-- Main Page Shift Closing Form Card -->
-          <div class="content-card mb-6">
+          <!-- Main Page Shift Closing Form Card (Hidden by default, toggled via button) -->
+          <div class="content-card mb-6" id="shift-form-card" style="display: none;">
             <div class="card-header flex-between">
               <h4 class="card-title"><i class="fa-solid fa-file-signature text-indigo"></i> บันทึกเอกสารปิดกะการขาย</h4>
-              <button type="button" class="btn btn-outline btn-xs" onclick="resetShiftForm()"><i class="fa-solid fa-rotate-left"></i> ล้างข้อมูลฟอร์ม</button>
+              <div style="display:flex; gap:0.5rem;">
+                <button type="button" class="btn btn-outline btn-xs" onclick="resetShiftForm()"><i class="fa-solid fa-rotate-left"></i> ล้างข้อมูลฟอร์ม</button>
+                <button type="button" class="btn btn-ghost btn-xs text-rose" onclick="toggleShiftForm(false)"><i class="fa-solid fa-xmark"></i> ซ่อนฟอร์ม</button>
+              </div>
             </div>
 
             <form id="shift-closing-form" class="premium-form" onsubmit="handleShiftClosingSubmit(event)" style="padding: 1.25rem 1.5rem;">
@@ -567,8 +575,9 @@
                 </div>
               </div>
 
-              <!-- Submit Button -->
-              <div class="form-actions-right">
+              <!-- Submit & Cancel Buttons -->
+              <div class="form-actions-right" style="display:flex; gap:0.5rem; justify-content:flex-end;">
+                <button type="button" class="btn btn-outline" onclick="toggleShiftForm(false)">ยกเลิก / ซ่อนฟอร์ม</button>
                 <button type="submit" class="btn btn-primary btn-lg">
                   <i class="fa-solid fa-floppy-disk mr-1"></i> บันทึกเอกสารปิดกะการขาย
                 </button>
@@ -577,7 +586,7 @@
             </form>
           </div>
 
-          <!-- History Table Header & Filters -->
+          <!-- History Table Header & Filters (Visible by default) -->
           <div class="content-card mb-4" style="padding: 0.75rem 1rem;">
             <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
               <h4 class="card-title" style="margin: 0; font-size: 0.95rem;"><i class="fa-solid fa-list text-indigo"></i> ประวัติเอกสารปิดกะการขาย</h4>
