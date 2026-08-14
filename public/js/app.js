@@ -1857,6 +1857,7 @@ function openCreateTransactionModal(defaultType = 'expense') {
   // Set date to today and reset due date
   document.getElementById('tx-date').value = new Date().toLocaleDateString('sv-SE');
   document.getElementById('tx-due-date').value = '';
+  document.getElementById('tx-paid-date').value = '';
   
   // Reset is-future checkbox
   const isFutureCheckbox = document.getElementById('tx-is-future-checkbox');
@@ -1922,11 +1923,18 @@ function openEditTransactionModal(id) {
   // If editing a future transaction, check the checkbox and show fields
   if (isFutureEntry) {
     if (isFutureCheckbox) isFutureCheckbox.checked = true;
-    toggleFutureFields();
-    document.getElementById('tx-status').value = t.status || 'pending';
+    const currentStatus = t.status || 'pending';
+    document.getElementById('tx-status').value = currentStatus;
     document.getElementById('tx-due-date').value = t.dueDate || t.date || '';
+    if (currentStatus === 'paid') {
+      document.getElementById('tx-paid-date').value = t.date;
+    } else {
+      document.getElementById('tx-paid-date').value = '';
+    }
+    toggleFutureFields();
   } else {
     document.getElementById('tx-due-date').value = '';
+    document.getElementById('tx-paid-date').value = '';
   }
 
   document.getElementById('tx-amount').value = t.amount;
@@ -2181,7 +2189,7 @@ async function handleTransactionSubmit(e) {
   const isFutureMode = uiType === 'expense' && isFutureCheckbox && isFutureCheckbox.checked;
   // Map UI type to actual API type
   const type = isFutureMode ? 'future' : uiType;
-  const date = document.getElementById('tx-date').value;
+  let date = document.getElementById('tx-date').value;
   const category = document.getElementById('tx-category').value;
   const amount = Number(document.getElementById('tx-amount').value);
   const paymentMethod = document.getElementById('tx-payment-method').value;
@@ -2200,10 +2208,20 @@ async function handleTransactionSubmit(e) {
       return;
     }
     const status = document.getElementById('tx-status').value;
-    if (status === 'paid' && (paymentMethod === 'Unspecified' || !accountId)) {
-      alert('กรุณาระบุวิธีการชำระเงินและบัญชีที่ใช้จ่ายก่อนทำรายการชำระเงิน');
-      document.getElementById('tx-payment-method').focus();
-      return;
+    if (status === 'paid') {
+      const paidDate = document.getElementById('tx-paid-date').value;
+      if (!paidDate) {
+        alert('กรุณาระบุวันที่ชำระเงิน');
+        document.getElementById('tx-paid-date').focus();
+        return;
+      }
+      date = paidDate; // Use paid date as the primary date for the transaction
+      
+      if (paymentMethod === 'Unspecified' || !accountId) {
+        alert('กรุณาระบุวิธีการชำระเงินและบัญชีที่ใช้จ่ายก่อนทำรายการชำระเงิน');
+        document.getElementById('tx-payment-method').focus();
+        return;
+      }
     }
   }
 
@@ -2475,7 +2493,7 @@ function formatDateThShort(dateStr) {
 }
 
 function handleTypeChange(type) {
-  const statusGroup = document.getElementById('group-tx-status');
+  const statusRow = document.getElementById('group-tx-status-row');
   const dueDateGroup = document.getElementById('group-tx-due-date');
   const catGroup = document.getElementById('group-tx-category');
   const methodGroup = document.getElementById('group-tx-payment-method');
@@ -2491,12 +2509,12 @@ function handleTypeChange(type) {
   // When not expense, always reset and hide future fields
   if (type !== 'expense') {
     if (isFutureCheckbox) isFutureCheckbox.checked = false;
-    if (statusGroup) statusGroup.style.display = 'none';
+    if (statusRow) statusRow.style.display = 'none';
     if (dueDateGroup) dueDateGroup.style.display = 'none';
   } else {
     // Restore future fields based on checkbox state
     const isFuture = isFutureCheckbox && isFutureCheckbox.checked;
-    if (statusGroup) statusGroup.style.display = isFuture ? 'flex' : 'none';
+    if (statusRow) statusRow.style.display = isFuture ? 'grid' : 'none';
     if (dueDateGroup) dueDateGroup.style.display = isFuture ? 'flex' : 'none';
   }
 
@@ -2521,17 +2539,28 @@ function handleTypeChange(type) {
 // Toggle future fields when checkbox changes
 function toggleFutureFields() {
   const isFutureCheckbox = document.getElementById('tx-is-future-checkbox');
-  const statusGroup = document.getElementById('group-tx-status');
+  const statusRow = document.getElementById('group-tx-status-row');
   const dueDateGroup = document.getElementById('group-tx-due-date');
+  const paidDateGroup = document.getElementById('group-tx-paid-date');
   const isFuture = isFutureCheckbox && isFutureCheckbox.checked;
-  if (statusGroup) statusGroup.style.display = isFuture ? 'flex' : 'none';
+  const statusEl = document.getElementById('tx-status');
+  
+  if (statusRow) statusRow.style.display = isFuture ? 'grid' : 'none';
   if (dueDateGroup) dueDateGroup.style.display = isFuture ? 'flex' : 'none';
-  // Reset due date and status when unchecked
-  if (!isFuture) {
+  
+  if (isFuture) {
+    if (paidDateGroup) paidDateGroup.style.display = (statusEl && statusEl.value === 'paid') ? 'flex' : 'none';
+    if (statusEl && statusEl.value === 'paid' && !document.getElementById('tx-paid-date').value) {
+      document.getElementById('tx-paid-date').value = new Date().toLocaleDateString('sv-SE');
+    }
+  } else {
+    if (paidDateGroup) paidDateGroup.style.display = 'none';
+    // Reset due date and status when unchecked
     const dueDateEl = document.getElementById('tx-due-date');
-    const statusEl = document.getElementById('tx-status');
+    const paidDateEl = document.getElementById('tx-paid-date');
     if (dueDateEl) dueDateEl.value = '';
     if (statusEl) statusEl.value = 'pending';
+    if (paidDateEl) paidDateEl.value = '';
   }
 }
 
