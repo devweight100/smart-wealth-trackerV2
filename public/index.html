@@ -1329,8 +1329,11 @@
       </div>
 
       <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1.5rem;">
-        <button type="button" class="btn btn-outline" onclick="printShiftDocument()"><i class="fa-solid fa-print mr-1"></i> พิมพ์เอกสาร</button>
-        <button type="button" class="btn btn-primary" onclick="closeShiftDocumentModal()">ปิดหน้าต่าง</button>
+        <div style="display: flex; gap: 0.5rem;">
+          <button type="button" class="btn btn-outline" onclick="printShiftDocument()"><i class="fa-solid fa-print mr-1"></i> พิมพ์เอกสาร</button>
+          <button type="button" class="btn btn-primary" onclick="closeShiftDocumentModal(); if(window.activeShiftModalId) editShiftClosing(window.activeShiftModalId);"><i class="fa-solid fa-pen-to-square mr-1"></i> แก้ไขเอกสารปิดกะนี้</button>
+        </div>
+        <button type="button" class="btn btn-outline" onclick="closeShiftDocumentModal()">ปิดหน้าต่าง</button>
       </div>
     </div>
   </div>

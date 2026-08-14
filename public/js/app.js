@@ -3658,6 +3658,7 @@ function resetShiftFilters() {
 }
 
 function openShiftDocumentModal(id) {
+  window.activeShiftModalId = id;
   const shift = (State.shiftClosings || []).find(s => s.id === id);
   if (!shift) return;
 
@@ -3715,6 +3716,8 @@ function openShiftDocumentModal(id) {
     }
   }
 
+  const cashVal = shift.cashAmount !== undefined ? shift.cashAmount : (shift.cashIncome || 0);
+
   container.innerHTML = `
     <div class="shift-doc-paper">
       <!-- Printable Document Header -->
@@ -3745,7 +3748,7 @@ function openShiftDocumentModal(id) {
         <tbody>
           <tr>
             <td><i class="fa-solid fa-money-bill-wave text-emerald mr-1"></i> รายรับเงินสด (Cash)</td>
-            <td class="text-right text-emerald font-bold">+฿${formatCurrencyNumber(shift.cashIncome || 0)}</td>
+            <td class="text-right text-emerald font-bold">+฿${formatCurrencyNumber(cashVal)}</td>
           </tr>
           ${transfersHtml}
         </tbody>
