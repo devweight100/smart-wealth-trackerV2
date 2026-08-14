@@ -396,6 +396,8 @@ export async function createShiftClosing(db, data) {
   await getShiftClosings(db); // ensure table exists
   const now = nowISO();
 
+  const resolvedCash = Number(data.cashAmount || data.cashIncome || data.totalCashIncome || 0);
+
   await db.prepare(
     `INSERT INTO shift_closings (
       id, date, shift_name, cash_amount, total_cash_income, total_transfer_income,
@@ -406,13 +408,13 @@ export async function createShiftClosing(db, data) {
     data.id,
     data.date,
     data.shiftName,
-    data.cashAmount || 0,
-    data.totalCashIncome || 0,
+    resolvedCash,
+    resolvedCash,
     data.totalTransferIncome || 0,
     data.totalIncome || 0,
     data.totalExpense || 0,
     data.netAmount || 0,
-    JSON.stringify(data.transfers || []),
+    JSON.stringify(data.transfers || data.transferIncomes || []),
     JSON.stringify(data.expenses || []),
     JSON.stringify(data.createdTxIds || []),
     data.fileUrl || null,
@@ -431,15 +433,23 @@ export async function deleteShiftClosing(db, id) {
 function toShiftClosingAPI(row) {
   const transfers = row.transfers_json ? JSON.parse(row.transfers_json) : [];
   const expenses = row.expenses_json ? JSON.parse(row.expenses_json) : [];
+  const rawCash = Number(row.cash_amount || 0);
+  const rawTotalCash = Number(row.total_cash_income || 0);
+  const totalInc = Number(row.total_income || 0);
+  const totalTransferInc = Number(row.total_transfer_income || 0);
+  
+  // Robust cash resolution: if cash_amount is 0 but total_cash_income or (total_income - total_transfer_income) > 0, fallback!
+  const resolvedCash = rawCash || rawTotalCash || Math.max(0, totalInc - totalTransferInc);
+
   return {
     id: row.id,
     date: row.date,
     shiftName: row.shift_name,
-    cashAmount: Number(row.cash_amount || 0),
-    cashIncome: Number(row.cash_amount || 0),
-    totalCashIncome: Number(row.total_cash_income || 0),
-    totalTransferIncome: Number(row.total_transfer_income || 0),
-    totalIncome: Number(row.total_income || 0),
+    cashAmount: resolvedCash,
+    cashIncome: resolvedCash,
+    totalCashIncome: resolvedCash,
+    totalTransferIncome: totalTransferInc,
+    totalIncome: totalInc,
     totalExpense: Number(row.total_expense || 0),
     netAmount: Number(row.net_amount || 0),
     transfers,

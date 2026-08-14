@@ -3617,6 +3617,8 @@ function refreshShiftClosingsTable() {
       attachmentBtn = `<span class="text-slate" style="font-size:0.8rem;">-</span>`;
     }
 
+    const cashVal = shift.cashAmount || shift.cashIncome || shift.totalCashIncome || Math.max(0, (shift.totalIncome || 0) - (shift.totalTransferIncome || 0));
+
     tbody.innerHTML += `
       <tr>
         <td class="table-text-main">
@@ -3626,7 +3628,7 @@ function refreshShiftClosingsTable() {
         <td>
           <div class="table-text-main" style="font-weight:700;">${shift.shiftName}</div>
         </td>
-        <td class="text-right text-emerald">+฿${formatCurrencyNumber(shift.totalCashIncome || 0)}</td>
+        <td class="text-right text-emerald">+฿${formatCurrencyNumber(cashVal)}</td>
         <td class="text-right text-indigo">+฿${formatCurrencyNumber(shift.totalTransferIncome || 0)}</td>
         <td class="text-right text-emerald font-bold">+฿${formatCurrencyNumber(shift.totalIncome || 0)}</td>
         <td class="text-right text-rose">-฿${formatCurrencyNumber(shift.totalExpense || 0)}</td>
@@ -3716,7 +3718,7 @@ function openShiftDocumentModal(id) {
     }
   }
 
-  const cashVal = shift.cashAmount !== undefined ? shift.cashAmount : (shift.cashIncome || 0);
+  const cashVal = shift.cashAmount || shift.cashIncome || shift.totalCashIncome || Math.max(0, (shift.totalIncome || 0) - (shift.totalTransferIncome || 0));
 
   container.innerHTML = `
     <div class="shift-doc-paper">
