@@ -3217,7 +3217,7 @@ function calculateShiftLiveSummary() {
   if (document.getElementById('live-shift-total-exp')) document.getElementById('live-shift-total-exp').innerText = '฿' + formatCurrencyNumber(expenseTotal);
   if (document.getElementById('live-shift-net')) {
     document.getElementById('live-shift-net').innerText = (netAmount >= 0 ? '+' : '') + '฿' + formatCurrencyNumber(netAmount);
-    document.getElementById('live-shift-net').className = 'summary-val font-extrabold ' + (netAmount >= 0 ? 'text-sky-400' : 'text-rose');
+    document.getElementById('live-shift-net').className = 'pill-val ' + (netAmount >= 0 ? 'text-indigo font-extrabold' : 'text-rose font-extrabold');
   }
 }
 
