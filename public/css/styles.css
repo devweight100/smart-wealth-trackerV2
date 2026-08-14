@@ -2376,6 +2376,89 @@ body.modal-open {
   margin-bottom: 0 !important;
 }
 
+/* Further compact modal inputs */
+.modal-card.modal-tx .form-group input[type="text"],
+.modal-card.modal-tx .form-group input[type="number"],
+.modal-card.modal-tx .form-group input[type="date"],
+.modal-card.modal-tx .form-group select {
+  padding: 0.45rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+.modal-card.modal-tx .form-group label {
+  font-size: 0.78rem;
+  margin-bottom: 0.15rem;
+}
+
+.modal-card.modal-tx .form-row-2 {
+  gap: 0.75rem;
+}
+
+/* ==========================================================================
+   Date Group Header Row in Transactions Table
+   ========================================================================== */
+.table-date-header-row td {
+  padding: 0 !important;
+  border-bottom: none !important;
+  border-top: none !important;
+}
+
+.date-header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(90deg, #f0f4ff 0%, #f8fafc 100%);
+  border-left: 3px solid var(--primary);
+  padding: 0.45rem 1.1rem 0.45rem 0.9rem;
+  border-radius: 0 6px 6px 0;
+  margin: 0.35rem 0 0.1rem 0;
+}
+
+.date-header-label {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--primary);
+  letter-spacing: 0.01em;
+}
+
+.date-header-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.day-summary-inc {
+  color: #16a34a;
+}
+
+.day-summary-exp {
+  color: var(--rose);
+}
+
+.day-summary-sep {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.day-summary-pending {
+  color: var(--amber);
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-style: italic;
+}
+
+/* Dark mode for date header row */
+[data-theme="dark"] .date-header-content {
+  background: linear-gradient(90deg, #1e2a45 0%, #1e293b 100%);
+  border-left-color: var(--primary-light);
+}
+
+[data-theme="dark"] .date-header-label {
+  color: #a5b4fc;
+}
+
 /* ==========================================================================
    Premium POS Style Passcode Login Screen
    ========================================================================== */

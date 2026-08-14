@@ -460,6 +460,46 @@ function refreshTransactionsTable() {
 
   const totalEntries = filtered.length;
   
+  // ── Compute displayDate for each transaction ────────────────────────────
+  // Pending future expenses show at their dueDate; all others at their date
+  filtered.forEach(t => {
+    const isPendingFuture = t.type === 'future' && t.status !== 'paid';
+    t._displayDate = isPendingFuture ? (t.dueDate || t.date) : t.date;
+  });
+
+  // Re-sort by displayDate descending (then by original date as tiebreak)
+  filtered.sort((a, b) => {
+    if (b._displayDate !== a._displayDate) return b._displayDate.localeCompare(a._displayDate);
+    return b.date.localeCompare(a.date);
+  });
+
+  // ── Pre-compute per-day summaries across ALL filtered transactions ──────
+  // (not just current page, so header is accurate even when paginated)
+  const daySummary = {}; // key = YYYY-MM-DD
+  const txList2 = Array.isArray(State.transactions) ? State.transactions : [];
+  // Use all transactions for daily totals so header always reflects full-day data
+  txList2.forEach(t => {
+    if (t.type === 'transfer_out' || t.type === 'transfer_in') return; // skip transfers
+    const isPendingFuture = t.type === 'future' && t.status !== 'paid';
+    // For income/expense/paid-future: key = t.date (actual transaction date)
+    // For pending future: count pending amount on creation date (t.date)
+    const key = t.date;
+    if (!daySummary[key]) daySummary[key] = { income: 0, expense: 0, pendingFuture: 0 };
+    if (t.type === 'income') {
+      daySummary[key].income += Number(t.amount) || 0;
+    } else if (t.type === 'expense') {
+      daySummary[key].expense += Number(t.amount) || 0;
+    } else if (t.type === 'future') {
+      if (t.status === 'paid') {
+        // Paid future: count as expense on its paid date (t.date)
+        daySummary[key].expense += Number(t.amount) || 0;
+      } else {
+        // Pending future: show pending amount on creation date (t.date)
+        daySummary[key].pendingFuture += Number(t.amount) || 0;
+      }
+    }
+  });
+
   // Handle Pagination
   const limit = State.pagination.limit;
   const totalPages = Math.max(1, Math.ceil(totalEntries / limit));
@@ -496,6 +536,7 @@ function refreshTransactionsTable() {
   // Draw Rows
   const today = new Date();
   today.setHours(0,0,0,0);
+  let lastRenderedDate = null;
 
   paginatedData.forEach(t => {
     const acc = State.accounts.find(a => a.id === t.accountId);
@@ -503,7 +544,41 @@ function refreshTransactionsTable() {
     const isFutureType = t.type === 'future';
     const isTransferOut = t.type === 'transfer_out';
     const isTransferIn = t.type === 'transfer_in';
-    
+    const displayDate = t._displayDate || t.date;
+
+    // ── Date Header Row ─────────────────────────────────────────────────
+    if (displayDate !== lastRenderedDate) {
+      lastRenderedDate = displayDate;
+      // For pending future: its displayDate = dueDate, but its day summary lives on t.date (creation date)
+      // So lookup the summary using the correct key: for non-pending items displayDate == t.date,
+      // for pending future displayDate == dueDate, so we need to look at summary for displayDate
+      // (which holds income/expense of that day) but also check if there are any pending futures whose creation date == displayDate
+      const summary = daySummary[displayDate] || {};
+      const incTotal = summary.income || 0;
+      const expTotal = summary.expense || 0;
+      const pendTotal = summary.pendingFuture || 0;
+
+      let summaryHtml = '';
+      if (incTotal > 0) summaryHtml += `<span class="day-summary-inc">+฿${formatCurrencyNumber(incTotal)}</span>`;
+      if (expTotal > 0) {
+        if (incTotal > 0) summaryHtml += '<span class="day-summary-sep"> / </span>';
+        summaryHtml += `<span class="day-summary-exp">-฿${formatCurrencyNumber(expTotal)}</span>`;
+      }
+      if (pendTotal > 0) {
+        summaryHtml += `<span class="day-summary-pending"> (ค้างจ่ายล่วงหน้า: -฿${formatCurrencyNumber(pendTotal)})</span>`;
+      }
+
+      tbody.innerHTML += `
+        <tr class="table-date-header-row">
+          <td colspan="9">
+            <div class="date-header-content">
+              <span class="date-header-label"><i class="fa-regular fa-calendar-days mr-1"></i>${formatDateThShort(displayDate)}</span>
+              <span class="date-header-summary">${summaryHtml}</span>
+            </div>
+          </td>
+        </tr>`;
+    }
+
     // Amount class
     let amountClass = 'text-amount-exp';
     let amountPrefix = '-฿';
@@ -560,7 +635,8 @@ function refreshTransactionsTable() {
     if (isIncome) {
       typeCellContent = '<span class="badge badge-emerald"><i class="fa-solid fa-circle-chevron-down mr-1"></i> รายรับ</span>';
     } else if (isFutureType) {
-      typeCellContent = `<span class="badge badge-amber"><i class="fa-regular fa-clock mr-1"></i> จ่ายล่วงหน้า</span>`;
+      // Future type now shows as red "expense" badge; status is shown in detail column
+      typeCellContent = `<span class="badge badge-rose"><i class="fa-solid fa-circle-chevron-up mr-1"></i> รายจ่าย</span>`;
     } else if (isTransferOut || isTransferIn) {
       typeCellContent = '<span class="badge badge-indigo" style="background-color: var(--primary-light); color: var(--primary); border: 1px solid rgba(79,70,229,0.15);"><i class="fa-solid fa-money-bill-transfer mr-1"></i> ย้ายเงิน</span>';
     } else {
@@ -629,14 +705,14 @@ function refreshTransactionsTable() {
 
     tbody.innerHTML += `
       <tr class="${rowUrgencyClass}">
-        <td class="table-text-main">${formatDateThShort(t.date)}</td>
+        <td class="table-text-main">${formatDateThShort(displayDate)}</td>
         <td>
           ${typeCellContent}
         </td>
         <td class="table-text-main">${t.category}</td>
         <td>
           ${detailHTML}
-          ${t.type === 'future' ? '<div class="table-text-sub text-amber-hover"><i class="fa-regular fa-hourglass-half"></i> ตั้งจ่ายล่วงหน้า</div>' : ''}
+          ${isFutureType ? '<div class="table-text-sub" style="margin-top:0.2rem;"><i class="fa-regular fa-hourglass-half text-amber"></i> ตั้งจ่ายล่วงหน้า</div>' : ''}
         </td>
         <td>
           <span class="badge badge-slate">${t.paymentMethod === 'Cash' ? 'เงินสด' : (t.paymentMethod === 'Transfer' ? 'เงินโอน' : 'ไม่ระบุ')}</span>
@@ -1782,20 +1858,29 @@ function openCreateTransactionModal(defaultType = 'expense') {
   document.getElementById('tx-date').value = new Date().toLocaleDateString('sv-SE');
   document.getElementById('tx-due-date').value = '';
   
+  // Reset is-future checkbox
+  const isFutureCheckbox = document.getElementById('tx-is-future-checkbox');
+  if (isFutureCheckbox) isFutureCheckbox.checked = false;
+  
   // Reset Upload badge
   removeUploadedAttachment();
   
+  // Map old 'future' defaultType to 'expense' + checkbox checked
+  let uiType = defaultType;
+  if (defaultType === 'future') {
+    uiType = 'expense';
+    if (isFutureCheckbox) isFutureCheckbox.checked = true;
+  }
+  
   // Reset type hidden field and select active button
-  document.getElementById('tx-type').value = defaultType;
+  document.getElementById('tx-type').value = uiType;
   const typeButtons = document.querySelectorAll('.transaction-type-blocks .type-block-btn');
   typeButtons.forEach(btn => {
-    if (btn.getAttribute('data-type') === defaultType) {
-      btn.classList.add('active');
-    } else {
-      btn.classList.remove('active');
-    }
+    btn.classList.toggle('active', btn.getAttribute('data-type') === uiType);
   });
-  handleTypeChange(defaultType);
+  handleTypeChange(uiType);
+  // If future mode via checkbox, sync fields
+  if (defaultType === 'future') toggleFutureFields();
   
   // Set default payment method and update accounts dropdown
   document.getElementById('tx-payment-method').value = 'Transfer';
@@ -1813,26 +1898,31 @@ function openEditTransactionModal(id) {
   // Reset form first
   document.getElementById('transaction-form').reset();
   
+  // Update active type button state
+  const isFutureCheckbox = document.getElementById('tx-is-future-checkbox');
   const isTransfer = t.type === 'transfer_out' || t.type === 'transfer_in';
-  const formType = isTransfer ? 'transfer' : t.type;
+  const isFutureEntry = t.type === 'future';
+  const formType = isTransfer ? 'transfer' : (isFutureEntry ? 'expense' : t.type);
 
   // Load data
   document.getElementById('tx-id').value = t.id;
   document.getElementById('tx-type').value = formType;
   document.getElementById('tx-date').value = t.date;
-  
+
   // Update active type button state
   const typeButtons = document.querySelectorAll('.transaction-type-blocks .type-block-btn');
   typeButtons.forEach(btn => {
-    if (btn.getAttribute('data-type') === formType) {
-      btn.classList.add('active');
-    } else {
-      btn.classList.remove('active');
-    }
+    btn.classList.toggle('active', btn.getAttribute('data-type') === formType);
   });
+
+  // Reset future checkbox first
+  if (isFutureCheckbox) isFutureCheckbox.checked = false;
   handleTypeChange(formType);
-  
-  if (formType === 'future') {
+
+  // If editing a future transaction, check the checkbox and show fields
+  if (isFutureEntry) {
+    if (isFutureCheckbox) isFutureCheckbox.checked = true;
+    toggleFutureFields();
     document.getElementById('tx-status').value = t.status || 'pending';
     document.getElementById('tx-due-date').value = t.dueDate || t.date || '';
   } else {
@@ -2086,7 +2176,11 @@ async function handleTransactionSubmit(e) {
   e.preventDefault();
   
   const id = document.getElementById('tx-id').value;
-  const type = document.getElementById('tx-type').value;
+  const uiType = document.getElementById('tx-type').value;
+  const isFutureCheckbox = document.getElementById('tx-is-future-checkbox');
+  const isFutureMode = uiType === 'expense' && isFutureCheckbox && isFutureCheckbox.checked;
+  // Map UI type to actual API type
+  const type = isFutureMode ? 'future' : uiType;
   const date = document.getElementById('tx-date').value;
   const category = document.getElementById('tx-category').value;
   const amount = Number(document.getElementById('tx-amount').value);
@@ -2387,12 +2481,23 @@ function handleTypeChange(type) {
   const methodGroup = document.getElementById('group-tx-payment-method');
   const toAccGroup = document.getElementById('group-tx-to-account');
   const accLabel = document.querySelector('#group-tx-account label');
-  const dateLabel = document.querySelector('label[for="tx-date"]');
+  const isFutureGroup = document.getElementById('group-tx-is-future');
+  const isFutureCheckbox = document.getElementById('tx-is-future-checkbox');
 
-  if (statusGroup) statusGroup.style.display = type === 'future' ? 'flex' : 'none';
-  if (dueDateGroup) dueDateGroup.style.display = type === 'future' ? 'flex' : 'none';
-  if (dateLabel) {
-    dateLabel.innerHTML = 'วันที่ทำรายการ <span class="text-rose">*</span>';
+  // Show/hide advance expense checkbox only for expense type
+  if (isFutureGroup) {
+    isFutureGroup.style.display = type === 'expense' ? 'block' : 'none';
+  }
+  // When not expense, always reset and hide future fields
+  if (type !== 'expense') {
+    if (isFutureCheckbox) isFutureCheckbox.checked = false;
+    if (statusGroup) statusGroup.style.display = 'none';
+    if (dueDateGroup) dueDateGroup.style.display = 'none';
+  } else {
+    // Restore future fields based on checkbox state
+    const isFuture = isFutureCheckbox && isFutureCheckbox.checked;
+    if (statusGroup) statusGroup.style.display = isFuture ? 'flex' : 'none';
+    if (dueDateGroup) dueDateGroup.style.display = isFuture ? 'flex' : 'none';
   }
 
   if (type === 'transfer') {
@@ -2406,17 +2511,27 @@ function handleTypeChange(type) {
     if (methodGroup) methodGroup.style.display = 'flex';
     if (toAccGroup) toAccGroup.style.display = 'none';
     if (accLabel) {
-      accLabel.innerHTML = type === 'future' ? 'บัญชีที่ใช้จ่ายเงิน' : 'บัญชีการเงินที่ผูก <span class="text-rose">*</span>';
-    }
-    if (type === 'future') {
-      document.getElementById('tx-payment-method').value = 'Unspecified';
-    } else {
-      if (document.getElementById('tx-payment-method').value === 'Unspecified') {
-        document.getElementById('tx-payment-method').value = 'Transfer';
-      }
+      accLabel.innerHTML = 'บัญชีการเงินที่ผูก <span class="text-rose">*</span>';
     }
     updateTransactionFormCategories();
     updateTransactionFormAccounts();
+  }
+}
+
+// Toggle future fields when checkbox changes
+function toggleFutureFields() {
+  const isFutureCheckbox = document.getElementById('tx-is-future-checkbox');
+  const statusGroup = document.getElementById('group-tx-status');
+  const dueDateGroup = document.getElementById('group-tx-due-date');
+  const isFuture = isFutureCheckbox && isFutureCheckbox.checked;
+  if (statusGroup) statusGroup.style.display = isFuture ? 'flex' : 'none';
+  if (dueDateGroup) dueDateGroup.style.display = isFuture ? 'flex' : 'none';
+  // Reset due date and status when unchecked
+  if (!isFuture) {
+    const dueDateEl = document.getElementById('tx-due-date');
+    const statusEl = document.getElementById('tx-status');
+    if (dueDateEl) dueDateEl.value = '';
+    if (statusEl) statusEl.value = 'pending';
   }
 }
 
