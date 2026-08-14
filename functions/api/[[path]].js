@@ -19,6 +19,7 @@ import {
   getSetting, setSetting, getAllSettings,
   getUsers, createUser, updateUserPassword, toggleUserActive,
   exportAllData, getTrash, getAuditLogs, getDashboardStats,
+  getShiftClosings, createShiftClosing, deleteShiftClosing,
 } from './lib/db.js';
 
 import { writeAudit, requestInfo } from './lib/audit.js';
@@ -555,6 +556,27 @@ export async function onRequest(context) {
         await writeAudit(db, { ...session, action: 'delete', resource: 'transaction', resourceId: id, oldData: tx, ...info });
         return json({ message: 'ลบรายการสำเร็จ (สามารถกู้คืนได้จาก Trash)' });
       }
+    }
+
+    // ── SHIFT CLOSINGS ────────────────────────────────────────────────────────
+    if (path === '/shift-closings') {
+      if (method === 'GET') {
+        const shifts = await getShiftClosings(db);
+        return json(shifts);
+      }
+      if (method === 'POST') {
+        const body = await request.json();
+        const created = await createShiftClosing(db, { ...body, createdBy: session.userId });
+        await writeAudit(db, { ...session, action: 'create', resource: 'shift_closing', resourceId: body.id, newData: created, ...info });
+        return json(created, 201);
+      }
+    }
+
+    if (path.startsWith('/shift-closings/') && method === 'DELETE') {
+      const id = path.split('/')[2];
+      await deleteShiftClosing(db, id);
+      await writeAudit(db, { ...session, action: 'delete', resource: 'shift_closing', resourceId: id, ...info });
+      return json({ message: 'ลบเอกสารปิดกะสำเร็จ' });
     }
 
     // ── FILE UPLOAD ───────────────────────────────────────────────────────────

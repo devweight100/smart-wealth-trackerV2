@@ -352,6 +352,102 @@ export async function getDashboardStats(db) {
   };
 }
 
+// ─── SHIFT CLOSINGS ───────────────────────────────────────────────────────────
+
+export async function getShiftClosings(db) {
+  // Ensure shift_closings table exists
+  try {
+    await db.prepare(`
+      CREATE TABLE IF NOT EXISTS shift_closings (
+        id TEXT PRIMARY KEY,
+        date TEXT NOT NULL,
+        shift_name TEXT NOT NULL,
+        cash_amount REAL DEFAULT 0,
+        total_cash_income REAL DEFAULT 0,
+        total_transfer_income REAL DEFAULT 0,
+        total_income REAL DEFAULT 0,
+        total_expense REAL DEFAULT 0,
+        net_amount REAL DEFAULT 0,
+        transfers_json TEXT,
+        expenses_json TEXT,
+        created_tx_ids TEXT,
+        file_url TEXT,
+        created_by TEXT,
+        created_at TEXT NOT NULL,
+        deleted_at TEXT
+      )
+    `).run();
+  } catch (err) {
+    console.error('Error creating shift_closings table:', err);
+  }
+
+  try {
+    const { results } = await db.prepare(
+      `SELECT * FROM shift_closings WHERE deleted_at IS NULL ORDER BY date DESC, created_at DESC`
+    ).all();
+    return (results || []).map(toShiftClosingAPI);
+  } catch (err) {
+    console.error('Error fetching shift_closings:', err);
+    return [];
+  }
+}
+
+export async function createShiftClosing(db, data) {
+  await getShiftClosings(db); // ensure table exists
+  const now = nowISO();
+
+  await db.prepare(
+    `INSERT INTO shift_closings (
+      id, date, shift_name, cash_amount, total_cash_income, total_transfer_income,
+      total_income, total_expense, net_amount, transfers_json, expenses_json,
+      created_tx_ids, file_url, created_by, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(
+    data.id,
+    data.date,
+    data.shiftName,
+    data.cashAmount || 0,
+    data.totalCashIncome || 0,
+    data.totalTransferIncome || 0,
+    data.totalIncome || 0,
+    data.totalExpense || 0,
+    data.netAmount || 0,
+    JSON.stringify(data.transfers || []),
+    JSON.stringify(data.expenses || []),
+    JSON.stringify(data.createdTxIds || []),
+    data.fileUrl || null,
+    data.createdBy || null,
+    data.createdAt || now
+  ).run();
+
+  return data;
+}
+
+export async function deleteShiftClosing(db, id) {
+  const now = nowISO();
+  await db.prepare(`UPDATE shift_closings SET deleted_at=?, updated_at=? WHERE id=?`).bind(now, now, id).run();
+}
+
+function toShiftClosingAPI(row) {
+  return {
+    id: row.id,
+    date: row.date,
+    shiftName: row.shift_name,
+    cashAmount: Number(row.cash_amount || 0),
+    totalCashIncome: Number(row.total_cash_income || 0),
+    totalTransferIncome: Number(row.total_transfer_income || 0),
+    totalIncome: Number(row.total_income || 0),
+    totalExpense: Number(row.total_expense || 0),
+    netAmount: Number(row.net_amount || 0),
+    transfers: row.transfers_json ? JSON.parse(row.transfers_json) : [],
+    expenses: row.expenses_json ? JSON.parse(row.expenses_json) : [],
+    createdTxIds: row.created_tx_ids ? JSON.parse(row.created_tx_ids) : [],
+    fileUrl: row.file_url || null,
+    createdBy: row.created_by || null,
+    createdAt: row.created_at
+  };
+}
+
 // ─── Format Converters (snake_case → camelCase) ───────────────────────────────
 
 function toAccountAPI(row) {

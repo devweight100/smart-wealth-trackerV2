@@ -75,10 +75,11 @@ async function reloadAppData() {
   try {
     // Parallel fetch for speed — load up to 500 transactions for Dashboard/Charts
     console.log('[SWT] Starting reloadAppData...');
-    const [accounts, categories, txResult] = await Promise.all([
+    const [accounts, categories, txResult, shiftClosings] = await Promise.all([
       API.getAccounts(),
       API.getCategories(),
-      API.getTransactions({ limit: 500, page: 1 })
+      API.getTransactions({ limit: 500, page: 1 }),
+      API.getShiftClosings().catch(() => [])
     ]);
 
     console.log('[SWT] txResult type:', typeof txResult, Array.isArray(txResult), txResult?.data ? 'has .data' : 'no .data');
@@ -90,6 +91,7 @@ async function reloadAppData() {
     State.transactions = Array.isArray(txData) ? txData : [];
     State.txTotal      = txResult?.total  ?? State.transactions.length;
     State.txPages      = txResult?.pages  ?? 1;
+    State.shiftClosings = Array.isArray(shiftClosings) && shiftClosings.length > 0 ? shiftClosings : JSON.parse(localStorage.getItem('smart_wealth_shift_closings') || '[]');
 
     console.log('[SWT] State.transactions length:', State.transactions.length, 'isArray:', Array.isArray(State.transactions));
 
@@ -3417,6 +3419,11 @@ async function handleShiftClosingSubmit(e) {
     };
 
     State.shiftClosings.unshift(shiftDocument);
+    try {
+      await API.createShiftClosing(shiftDocument);
+    } catch (dbErr) {
+      console.warn('Could not save shift closing to D1 DB, falling back to LocalStorage:', dbErr);
+    }
     saveShiftClosingsToStorage();
 
     await reloadAppData();
@@ -3668,6 +3675,11 @@ async function deleteShiftClosing(id) {
     }
 
     State.shiftClosings.splice(index, 1);
+    try {
+      await API.deleteShiftClosing(id);
+    } catch (e) {
+      console.warn('Could not delete shift closing from D1 DB:', e);
+    }
     saveShiftClosingsToStorage();
     await reloadAppData();
     refreshShiftClosingsTable();

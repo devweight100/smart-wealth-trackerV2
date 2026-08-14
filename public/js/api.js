@@ -304,6 +304,30 @@ const API = {
     if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'ส่งรายงานรายเดือนไม่สำเร็จ'); }
     return res.json();
   },
+
+  // ─── Shift Closings (Cloudflare D1 Database) ─────────────────────────────────
+
+  async getShiftClosings() {
+    const res = await fetchWithAuth(`${API_BASE_URL}/api/shift-closings`);
+    if (!res.ok) throw new Error('ไม่สามารถโหลดประวัติปิดกะจากฐานข้อมูลได้');
+    return res.json();
+  },
+
+  async createShiftClosing(data) {
+    const res = await fetchWithAuth(`${API_BASE_URL}/api/shift-closings`, {
+      method : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body   : JSON.stringify(data),
+    });
+    if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'บันทึกปิดกะลงฐานข้อมูลไม่สำเร็จ'); }
+    return res.json();
+  },
+
+  async deleteShiftClosing(id) {
+    const res = await fetchWithAuth(`${API_BASE_URL}/api/shift-closings/${id}`, { method: 'DELETE' });
+    if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'ลบปิดกะจากฐานข้อมูลไม่สำเร็จ'); }
+    return res.json();
+  },
 };
 
 window.API = API;
