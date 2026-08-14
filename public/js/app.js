@@ -1903,6 +1903,17 @@ function openEditTransactionModal(id) {
   const t = (Array.isArray(State.transactions) ? State.transactions : []).find(tx => tx.id === id);
   if (!t) return;
 
+  // Check if transaction belongs to a shift closing document
+  const shiftMatch = (t.notes || '').match(/\[ปิดกะ #(SHIFT-\d+)\]/);
+  if (shiftMatch) {
+    const shiftId = shiftMatch[1];
+    alert(`📌 รายการนี้มาจากเอกสารปิดกะการขาย (${shiftId})\nระบบจะนำคุณไปยังแบบฟอร์มเอกสารปิดกะเพื่อแก้ไขข้อมูลทั้งใบครับ`);
+    const shiftNav = document.querySelector('.nav-item[data-tab="view-shift-closing"]');
+    if (shiftNav) shiftNav.click();
+    editShiftClosing(shiftId);
+    return;
+  }
+
   // Reset form first
   document.getElementById('transaction-form').reset();
   
@@ -2285,6 +2296,15 @@ async function handleTransactionSubmit(e) {
 
 // Delete Transaction
 async function deleteTransaction(id) {
+  const t = (Array.isArray(State.transactions) ? State.transactions : []).find(tx => tx.id === id);
+  const shiftMatch = (t?.notes || '').match(/\[ปิดกะ #(SHIFT-\d+)\]/);
+  if (shiftMatch) {
+    const shiftId = shiftMatch[1];
+    const confirmShiftDelete = confirm(`⚠️ รายการนี้มาจากเอกสารปิดกะการขาย (${shiftId})\n\nการลบรายการนี้จะต้องทำการลบเอกสารปิดกะการขายและรายการทั้งหมดในกะนี้ด้วย\n\nคุณยืนยันที่จะลบเอกสารปิดกะฉบับนี้หรือไม่?`);
+    if (!confirmShiftDelete) return;
+    return deleteShiftClosing(shiftId, true);
+  }
+
   const confirmDelete = confirm('คุณแน่ใจหรือไม่ว่าต้องการลบรายการธุรกรรมการเงินนี้? (รายการจะถูกย้ายไปที่ถังขยะและคุณสามารถกู้คืนได้ภายหลัง)');
   if (!confirmDelete) return;
 
@@ -3113,12 +3133,14 @@ window.closeDailyAlertModal = closeDailyAlertModal;
 // ==========================================================================
 State.shiftClosings = JSON.parse(localStorage.getItem('smart_wealth_shift_closings') || '[]');
 State.shiftPendingFile = null;
+State.editingShiftId = null;
 
 function saveShiftClosingsToStorage() {
   localStorage.setItem('smart_wealth_shift_closings', JSON.stringify(State.shiftClosings || []));
 }
 
 function resetShiftForm() {
+  State.editingShiftId = null;
   const form = document.getElementById('shift-closing-form');
   if (form) form.reset();
   if (document.getElementById('shift-date')) document.getElementById('shift-date').value = new Date().toLocaleDateString('sv-SE');
@@ -3134,6 +3156,11 @@ function resetShiftForm() {
   addShiftExpenseRow();
   removeShiftUploadedAttachment();
   calculateShiftLiveSummary();
+
+  const formCardTitle = document.querySelector('#shift-form-card .card-title');
+  if (formCardTitle) formCardTitle.innerHTML = `<i class="fa-solid fa-file-signature text-indigo"></i> บันทึกเอกสารปิดกะการขาย`;
+  const submitBtn = document.querySelector('#shift-closing-form button[type="submit"]');
+  if (submitBtn) submitBtn.innerHTML = `<i class="fa-solid fa-floppy-disk mr-1"></i> บันทึกเอกสารปิดกะการขาย`;
 }
 
 function toggleShiftForm(forceShow) {
@@ -3169,6 +3196,93 @@ function openShiftClosingModal() {
 
 function closeShiftClosingModal() {
   toggleShiftForm(false);
+}
+
+function editShiftClosing(id) {
+  const shift = (State.shiftClosings || []).find(s => s.id === id);
+  if (!shift) {
+    alert('ไม่พบเอกสารปิดกะการขายที่ต้องการแก้ไข');
+    return;
+  }
+
+  State.editingShiftId = shift.id;
+  toggleShiftForm(true);
+
+  // Fill Date & Shift Name
+  if (document.getElementById('shift-date')) document.getElementById('shift-date').value = shift.date;
+  if (document.getElementById('shift-name')) document.getElementById('shift-name').value = shift.shiftName;
+  
+  // Fill Cash Amount
+  const cashVal = shift.cashAmount !== undefined ? shift.cashAmount : (shift.cashIncome || 0);
+  if (document.getElementById('shift-cash-amount')) document.getElementById('shift-cash-amount').value = cashVal > 0 ? cashVal : '';
+
+  // Fill Transfer Accounts
+  const trContainer = document.getElementById('shift-transfer-rows-container');
+  if (trContainer) trContainer.innerHTML = '';
+  const transfers = shift.transfers || shift.transferIncomes || [];
+  if (transfers.length > 0) {
+    transfers.forEach(tr => {
+      addShiftTransferAccountRow();
+      const rows = trContainer.querySelectorAll('.shift-dynamic-row');
+      const lastRow = rows[rows.length - 1];
+      if (lastRow) {
+        const select = lastRow.querySelector('.shift-transfer-acc-select');
+        const input = lastRow.querySelector('.shift-transfer-amount-input');
+        if (select) select.value = tr.accountId;
+        if (input) input.value = tr.amount;
+      }
+    });
+  } else {
+    addShiftTransferAccountRow();
+  }
+
+  // Fill Expenses
+  const expContainer = document.getElementById('shift-expense-rows-container');
+  if (expContainer) expContainer.innerHTML = '';
+  const expenses = shift.expenses || [];
+  if (expenses.length > 0) {
+    expenses.forEach(exp => {
+      addShiftExpenseRow();
+      const rows = expContainer.querySelectorAll('.shift-dynamic-row');
+      const lastRow = rows[rows.length - 1];
+      if (lastRow) {
+        const catSelect = lastRow.querySelector('.shift-expense-cat-select');
+        const amountInput = lastRow.querySelector('.shift-expense-amount-input');
+        const paySelect = lastRow.querySelector('.shift-expense-payment-select');
+        const accSelect = lastRow.querySelector('.shift-expense-account-select');
+        const notesInput = lastRow.querySelector('.shift-expense-notes-input');
+
+        if (catSelect) catSelect.value = exp.category;
+        if (amountInput) amountInput.value = exp.amount;
+        if (paySelect) paySelect.value = exp.paymentMethod;
+        if (accSelect) accSelect.value = exp.accountId;
+        if (notesInput) notesInput.value = exp.notes || '';
+      }
+    });
+  } else {
+    addShiftExpenseRow();
+  }
+
+  // File Attachment Badge if fileUrl exists
+  if (shift.fileUrl) {
+    const uploadZone = document.getElementById('shift-attachment-upload-zone');
+    const badge = document.getElementById('shift-uploaded-file-badge');
+    const badgeName = document.getElementById('shift-badge-file-name');
+    const badgeIcon = document.getElementById('shift-badge-file-icon');
+    if (uploadZone) uploadZone.style.display = 'none';
+    if (badge) badge.style.display = 'flex';
+    if (badgeName) badgeName.innerText = shift.fileUrl.split('/').pop();
+    const ext = shift.fileUrl.split('.').pop().toLowerCase();
+    if (badgeIcon) badgeIcon.className = ext === 'pdf' ? 'fa-regular fa-file-pdf text-rose' : 'fa-regular fa-image text-indigo';
+  }
+
+  calculateShiftLiveSummary();
+
+  // Update card title and submit button
+  const formCardTitle = document.querySelector('#shift-form-card .card-title');
+  if (formCardTitle) formCardTitle.innerHTML = `<i class="fa-solid fa-pen-to-square text-indigo"></i> แก้ไขเอกสารปิดกะการขาย (${shift.id})`;
+  const submitBtn = document.querySelector('#shift-closing-form button[type="submit"]');
+  if (submitBtn) submitBtn.innerHTML = `<i class="fa-solid fa-floppy-disk mr-1"></i> บันทึกการแก้ไขเอกสารปิดกะ`;
 }
 
 function addShiftTransferAccountRow() {
@@ -3352,10 +3466,25 @@ async function handleShiftClosingSubmit(e) {
   const totalExpense = expenseEntries.reduce((s, e) => s + e.amount, 0);
   const netAmount = totalIncome - totalExpense;
 
-  const shiftId = 'SHIFT-' + Date.now();
-  const createdTxIds = [];
+  const isEditing = Boolean(State.editingShiftId);
+  const shiftId = isEditing ? State.editingShiftId : ('SHIFT-' + Date.now());
+  const existingShift = isEditing ? (State.shiftClosings || []).find(s => s.id === shiftId) : null;
+  const finalFileUrl = fileUrl || (existingShift ? existingShift.fileUrl : null);
 
   try {
+    // Delete previously generated transactions if editing
+    if (isEditing && existingShift && existingShift.createdTxIds && existingShift.createdTxIds.length > 0) {
+      for (const oldTxId of existingShift.createdTxIds) {
+        try {
+          await API.deleteTransaction(oldTxId);
+        } catch (e) {
+          // ignore single tx delete error
+        }
+      }
+    }
+
+    const createdTxIds = [];
+
     // 1. Create Cash Income Transaction
     if (cashAmount > 0) {
       const tx = await API.createTransaction({
@@ -3405,7 +3534,9 @@ async function handleShiftClosingSubmit(e) {
       id: shiftId,
       date,
       shiftName,
+      cashAmount,
       cashIncome: cashAmount,
+      transfers: transferEntries,
       transferIncomes: transferEntries,
       expenses: expenseEntries,
       totalCashIncome,
@@ -3414,11 +3545,19 @@ async function handleShiftClosingSubmit(e) {
       totalExpense,
       netAmount,
       createdTxIds,
-      fileUrl,
-      createdAt: new Date().toISOString()
+      fileUrl: finalFileUrl,
+      createdAt: existingShift ? (existingShift.createdAt || new Date().toISOString()) : new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
 
-    State.shiftClosings.unshift(shiftDocument);
+    if (isEditing) {
+      const idx = State.shiftClosings.findIndex(s => s.id === shiftId);
+      if (idx !== -1) State.shiftClosings[idx] = shiftDocument;
+      else State.shiftClosings.unshift(shiftDocument);
+    } else {
+      State.shiftClosings.unshift(shiftDocument);
+    }
+
     try {
       await API.createShiftClosing(shiftDocument);
     } catch (dbErr) {
@@ -3426,10 +3565,11 @@ async function handleShiftClosingSubmit(e) {
     }
     saveShiftClosingsToStorage();
 
+    State.editingShiftId = null;
     await reloadAppData();
     toggleShiftForm(false);
     refreshShiftClosingsTable();
-    alert('✅ บันทึกเอกสารปิดกะการขายสำเร็จ! ข้อมูลถูกนำไปกระจายลงบันทึกรายรับ-รายจ่ายเรียบร้อยแล้ว');
+    alert(isEditing ? '✅ บันทึกการแก้ไขเอกสารปิดกะการขายสำเร็จ!' : '✅ บันทึกเอกสารปิดกะการขายสำเร็จ! ข้อมูลถูกนำไปกระจายลงบันทึกรายรับ-รายจ่ายเรียบร้อยแล้ว');
   } catch (err) {
     alert('❌ บันทึกปิดกะล้มเหลว: ' + err.message);
   } finally {
@@ -3498,6 +3638,9 @@ function refreshShiftClosingsTable() {
           <div style="display:flex; justify-content:center; gap:0.25rem;">
             <button class="btn btn-outline btn-xs" onclick="openShiftDocumentModal('${shift.id}')" title="ดูเอกสารฉบับเต็ม">
               <i class="fa-solid fa-file-invoice mr-1"></i> ดูเอกสาร
+            </button>
+            <button class="btn-table-action" onclick="editShiftClosing('${shift.id}')" title="แก้ไขเอกสารปิดกะ" style="margin-right: 0.25rem;">
+              <i class="fa-solid fa-pen-to-square"></i>
             </button>
             <button class="btn-table-action action-delete" onclick="deleteShiftClosing('${shift.id}')" title="ลบเอกสารปิดกะ">
               <i class="fa-solid fa-trash-can"></i>
@@ -3697,6 +3840,7 @@ window.resetShiftForm = resetShiftForm;
 window.toggleShiftForm = toggleShiftForm;
 window.openShiftClosingModal = openShiftClosingModal;
 window.closeShiftClosingModal = closeShiftClosingModal;
+window.editShiftClosing = editShiftClosing;
 window.addShiftTransferAccountRow = addShiftTransferAccountRow;
 window.addShiftExpenseRow = addShiftExpenseRow;
 window.calculateShiftLiveSummary = calculateShiftLiveSummary;

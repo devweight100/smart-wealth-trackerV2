@@ -429,18 +429,22 @@ export async function deleteShiftClosing(db, id) {
 }
 
 function toShiftClosingAPI(row) {
+  const transfers = row.transfers_json ? JSON.parse(row.transfers_json) : [];
+  const expenses = row.expenses_json ? JSON.parse(row.expenses_json) : [];
   return {
     id: row.id,
     date: row.date,
     shiftName: row.shift_name,
     cashAmount: Number(row.cash_amount || 0),
+    cashIncome: Number(row.cash_amount || 0),
     totalCashIncome: Number(row.total_cash_income || 0),
     totalTransferIncome: Number(row.total_transfer_income || 0),
     totalIncome: Number(row.total_income || 0),
     totalExpense: Number(row.total_expense || 0),
     netAmount: Number(row.net_amount || 0),
-    transfers: row.transfers_json ? JSON.parse(row.transfers_json) : [],
-    expenses: row.expenses_json ? JSON.parse(row.expenses_json) : [],
+    transfers,
+    transferIncomes: transfers,
+    expenses,
     createdTxIds: row.created_tx_ids ? JSON.parse(row.created_tx_ids) : [],
     fileUrl: row.file_url || null,
     createdBy: row.created_by || null,
