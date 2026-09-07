@@ -19,7 +19,7 @@ import {
   getSetting, setSetting, getAllSettings,
   getUsers, createUser, updateUserPassword, toggleUserActive,
   exportAllData, getTrash, getAuditLogs, getDashboardStats,
-  getShiftClosings, createShiftClosing, deleteShiftClosing,
+  getShiftClosings, createShiftClosing, updateShiftClosing, deleteShiftClosing,
 } from './lib/db.js';
 
 import { writeAudit, requestInfo } from './lib/audit.js';
@@ -572,11 +572,19 @@ export async function onRequest(context) {
       }
     }
 
-    if (path.startsWith('/shift-closings/') && method === 'DELETE') {
+    if (path.startsWith('/shift-closings/')) {
       const id = path.split('/')[2];
-      await deleteShiftClosing(db, id);
-      await writeAudit(db, { ...session, action: 'delete', resource: 'shift_closing', resourceId: id, ...info });
-      return json({ message: 'ลบเอกสารปิดกะสำเร็จ' });
+      if (method === 'PUT') {
+        const body = await request.json();
+        const updated = await updateShiftClosing(db, id, { ...body, updatedBy: session.userId });
+        await writeAudit(db, { ...session, action: 'update', resource: 'shift_closing', resourceId: id, newData: updated, ...info });
+        return json(updated);
+      }
+      if (method === 'DELETE') {
+        await deleteShiftClosing(db, id);
+        await writeAudit(db, { ...session, action: 'delete', resource: 'shift_closing', resourceId: id, ...info });
+        return json({ message: 'ลบเอกสารปิดกะสำเร็จ' });
+      }
     }
 
     // ── FILE UPLOAD ───────────────────────────────────────────────────────────

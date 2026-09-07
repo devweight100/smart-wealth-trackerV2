@@ -3141,6 +3141,8 @@ function saveShiftClosingsToStorage() {
 
 function resetShiftForm() {
   State.editingShiftId = null;
+  const hiddenIdInput = document.getElementById('shift-id');
+  if (hiddenIdInput) hiddenIdInput.value = '';
   const form = document.getElementById('shift-closing-form');
   if (form) form.reset();
   if (document.getElementById('shift-date')) document.getElementById('shift-date').value = new Date().toLocaleDateString('sv-SE');
@@ -3163,7 +3165,7 @@ function resetShiftForm() {
   if (submitBtn) submitBtn.innerHTML = `<i class="fa-solid fa-floppy-disk mr-1"></i> บันทึกเอกสารปิดกะการขาย`;
 }
 
-function toggleShiftForm(forceShow) {
+function toggleShiftForm(forceShow, keepEditing = false) {
   try {
     const card = document.getElementById('shift-form-card');
     const btn = document.getElementById('btn-toggle-shift-form');
@@ -3173,13 +3175,16 @@ function toggleShiftForm(forceShow) {
     const shouldShow = forceShow !== undefined ? forceShow : isHidden;
 
     if (shouldShow) {
-      resetShiftForm();
+      if (!keepEditing) {
+        resetShiftForm();
+      }
       card.style.display = 'block';
       if (btn) btn.innerHTML = '<i class="fa-solid fa-eye-slash mr-1"></i> ซ่อนแบบฟอร์ม';
       setTimeout(() => {
         card.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }, 50);
     } else {
+      resetShiftForm();
       card.style.display = 'none';
       if (btn) btn.innerHTML = '<i class="fa-solid fa-plus-circle mr-1"></i> บันทึกปิดกะการขาย';
     }
@@ -3205,8 +3210,10 @@ function editShiftClosing(id) {
     return;
   }
 
+  toggleShiftForm(true, true);
   State.editingShiftId = shift.id;
-  toggleShiftForm(true);
+  const hiddenIdInput = document.getElementById('shift-id');
+  if (hiddenIdInput) hiddenIdInput.value = shift.id;
 
   // Fill Date & Shift Name
   if (document.getElementById('shift-date')) document.getElementById('shift-date').value = shift.date;
@@ -3466,15 +3473,27 @@ async function handleShiftClosingSubmit(e) {
   const totalExpense = expenseEntries.reduce((s, e) => s + e.amount, 0);
   const netAmount = totalIncome - totalExpense;
 
-  const isEditing = Boolean(State.editingShiftId);
-  const shiftId = isEditing ? State.editingShiftId : ('SHIFT-' + Date.now());
+  const hiddenShiftId = document.getElementById('shift-id')?.value;
+  const isEditing = Boolean(State.editingShiftId || hiddenShiftId);
+  const shiftId = isEditing ? (State.editingShiftId || hiddenShiftId) : ('SHIFT-' + Date.now());
   const existingShift = isEditing ? (State.shiftClosings || []).find(s => s.id === shiftId) : null;
   const finalFileUrl = fileUrl || (existingShift ? existingShift.fileUrl : null);
 
   try {
     // Delete previously generated transactions if editing
-    if (isEditing && existingShift && existingShift.createdTxIds && existingShift.createdTxIds.length > 0) {
-      for (const oldTxId of existingShift.createdTxIds) {
+    if (isEditing) {
+      const oldTxIds = new Set();
+      if (existingShift && existingShift.createdTxIds && existingShift.createdTxIds.length > 0) {
+        existingShift.createdTxIds.forEach(id => oldTxIds.add(id));
+      }
+      // Also check State.transactions for transactions created by this shift
+      (State.transactions || []).forEach(tx => {
+        if (tx.notes && tx.notes.includes(`[ปิดกะ #${shiftId}]`)) {
+          oldTxIds.add(tx.id);
+        }
+      });
+
+      for (const oldTxId of oldTxIds) {
         try {
           await API.deleteTransaction(oldTxId);
         } catch (e) {
@@ -3559,13 +3578,18 @@ async function handleShiftClosingSubmit(e) {
     }
 
     try {
-      await API.createShiftClosing(shiftDocument);
+      if (isEditing) {
+        await API.updateShiftClosing(shiftId, shiftDocument);
+      } else {
+        await API.createShiftClosing(shiftDocument);
+      }
     } catch (dbErr) {
       console.warn('Could not save shift closing to D1 DB, falling back to LocalStorage:', dbErr);
     }
     saveShiftClosingsToStorage();
 
     State.editingShiftId = null;
+    if (document.getElementById('shift-id')) document.getElementById('shift-id').value = '';
     await reloadAppData();
     toggleShiftForm(false);
     refreshShiftClosingsTable();
@@ -3812,8 +3836,17 @@ async function deleteShiftClosing(id) {
 
   showLoader();
   try {
-    if (deleteTxAlso && shift.createdTxIds && shift.createdTxIds.length > 0) {
-      for (const txId of shift.createdTxIds) {
+    if (deleteTxAlso) {
+      const oldTxIds = new Set();
+      if (shift.createdTxIds && shift.createdTxIds.length > 0) {
+        shift.createdTxIds.forEach(txId => oldTxIds.add(txId));
+      }
+      (State.transactions || []).forEach(tx => {
+        if (tx.notes && tx.notes.includes(`[ปิดกะ #${id}]`)) {
+          oldTxIds.add(tx.id);
+        }
+      });
+      for (const txId of oldTxIds) {
         try {
           await API.deleteTransaction(txId);
         } catch (e) {

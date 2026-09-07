@@ -403,7 +403,21 @@ export async function createShiftClosing(db, data) {
       id, date, shift_name, cash_amount, total_cash_income, total_transfer_income,
       total_income, total_expense, net_amount, transfers_json, expenses_json,
       created_tx_ids, file_url, created_by, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      date = excluded.date,
+      shift_name = excluded.shift_name,
+      cash_amount = excluded.cash_amount,
+      total_cash_income = excluded.total_cash_income,
+      total_transfer_income = excluded.total_transfer_income,
+      total_income = excluded.total_income,
+      total_expense = excluded.total_expense,
+      net_amount = excluded.net_amount,
+      transfers_json = excluded.transfers_json,
+      expenses_json = excluded.expenses_json,
+      created_tx_ids = excluded.created_tx_ids,
+      file_url = COALESCE(excluded.file_url, shift_closings.file_url),
+      deleted_at = NULL`
   ).bind(
     data.id,
     data.date,
@@ -425,9 +439,52 @@ export async function createShiftClosing(db, data) {
   return data;
 }
 
+export async function updateShiftClosing(db, id, data) {
+  await getShiftClosings(db);
+  const resolvedCash = Number(data.cashAmount || data.cashIncome || data.totalCashIncome || 0);
+
+  await db.prepare(
+    `UPDATE shift_closings SET
+      date = ?,
+      shift_name = ?,
+      cash_amount = ?,
+      total_cash_income = ?,
+      total_transfer_income = ?,
+      total_income = ?,
+      total_expense = ?,
+      net_amount = ?,
+      transfers_json = ?,
+      expenses_json = ?,
+      created_tx_ids = ?,
+      file_url = COALESCE(?, file_url),
+      deleted_at = NULL
+     WHERE id = ?`
+  ).bind(
+    data.date,
+    data.shiftName,
+    resolvedCash,
+    resolvedCash,
+    data.totalTransferIncome || 0,
+    data.totalIncome || 0,
+    data.totalExpense || 0,
+    data.netAmount || 0,
+    JSON.stringify(data.transfers || data.transferIncomes || []),
+    JSON.stringify(data.expenses || []),
+    JSON.stringify(data.createdTxIds || []),
+    data.fileUrl || null,
+    id
+  ).run();
+
+  return { id, ...data };
+}
+
 export async function deleteShiftClosing(db, id) {
   const now = nowISO();
-  await db.prepare(`UPDATE shift_closings SET deleted_at=?, updated_at=? WHERE id=?`).bind(now, now, id).run();
+  try {
+    await db.prepare(`UPDATE shift_closings SET deleted_at=?, updated_at=? WHERE id=?`).bind(now, now, id).run();
+  } catch (e) {
+    await db.prepare(`UPDATE shift_closings SET deleted_at=? WHERE id=?`).bind(now, id).run();
+  }
 }
 
 function toShiftClosingAPI(row) {

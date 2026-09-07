@@ -323,6 +323,16 @@ const API = {
     return res.json();
   },
 
+  async updateShiftClosing(id, data) {
+    const res = await fetchWithAuth(`${API_BASE_URL}/api/shift-closings/${id}`, {
+      method : 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body   : JSON.stringify(data),
+    });
+    if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'แก้ไขปิดกะในฐานข้อมูลไม่สำเร็จ'); }
+    return res.json();
+  },
+
   async deleteShiftClosing(id) {
     const res = await fetchWithAuth(`${API_BASE_URL}/api/shift-closings/${id}`, { method: 'DELETE' });
     if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'ลบปิดกะจากฐานข้อมูลไม่สำเร็จ'); }
