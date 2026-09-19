@@ -1908,9 +1908,9 @@ function openEditTransactionModal(id) {
   if (shiftMatch) {
     const shiftId = shiftMatch[1];
     alert(`📌 รายการนี้มาจากเอกสารปิดกะการขาย (${shiftId})\nระบบจะนำคุณไปยังแบบฟอร์มเอกสารปิดกะเพื่อแก้ไขข้อมูลทั้งใบครับ`);
-    const shiftNav = document.querySelector('.nav-item[data-tab="view-shift-closing"]');
+    const shiftNav = document.getElementById('btn-nav-shift-closing');
     if (shiftNav) shiftNav.click();
-    editShiftClosing(shiftId);
+    await editShiftClosing(shiftId);
     return;
   }
 
@@ -2300,9 +2300,11 @@ async function deleteTransaction(id) {
   const shiftMatch = (t?.notes || '').match(/\[ปิดกะ #(SHIFT-\d+)\]/);
   if (shiftMatch) {
     const shiftId = shiftMatch[1];
-    const confirmShiftDelete = confirm(`⚠️ รายการนี้มาจากเอกสารปิดกะการขาย (${shiftId})\n\nการลบรายการนี้จะต้องทำการลบเอกสารปิดกะการขายและรายการทั้งหมดในกะนี้ด้วย\n\nคุณยืนยันที่จะลบเอกสารปิดกะฉบับนี้หรือไม่?`);
-    if (!confirmShiftDelete) return;
-    return deleteShiftClosing(shiftId, true);
+    alert(`📌 รายการนี้มาจากเอกสารปิดกะการขาย (${shiftId})\nหากต้องการลบหรือปรับปรุงรายการ ระบบจะนำคุณไปยังแบบฟอร์มแก้ไขเอกสารปิดกะฉบับนี้ทันทีครับ`);
+    const shiftNav = document.getElementById('btn-nav-shift-closing');
+    if (shiftNav) shiftNav.click();
+    await editShiftClosing(shiftId);
+    return;
   }
 
   const confirmDelete = confirm('คุณแน่ใจหรือไม่ว่าต้องการลบรายการธุรกรรมการเงินนี้? (รายการจะถูกย้ายไปที่ถังขยะและคุณสามารถกู้คืนได้ภายหลัง)');
@@ -3203,8 +3205,19 @@ function closeShiftClosingModal() {
   toggleShiftForm(false);
 }
 
-function editShiftClosing(id) {
-  const shift = (State.shiftClosings || []).find(s => s.id === id);
+async function editShiftClosing(id) {
+  let shift = (State.shiftClosings || []).find(s => s.id === id);
+  if (!shift) {
+    try {
+      const allShifts = await API.getShiftClosings();
+      if (Array.isArray(allShifts) && allShifts.length > 0) {
+        State.shiftClosings = allShifts;
+        shift = State.shiftClosings.find(s => s.id === id);
+      }
+    } catch (e) {
+      console.warn('Could not fetch shift closings from API:', e);
+    }
+  }
   if (!shift) {
     alert('ไม่พบเอกสารปิดกะการขายที่ต้องการแก้ไข');
     return;
@@ -3483,8 +3496,12 @@ async function handleShiftClosingSubmit(e) {
     // Delete previously generated transactions if editing
     if (isEditing) {
       const oldTxIds = new Set();
-      if (existingShift && existingShift.createdTxIds && existingShift.createdTxIds.length > 0) {
-        existingShift.createdTxIds.forEach(id => oldTxIds.add(id));
+      let txIds = existingShift ? existingShift.createdTxIds : null;
+      if (typeof txIds === 'string') {
+        try { txIds = JSON.parse(txIds); } catch (e) { txIds = []; }
+      }
+      if (Array.isArray(txIds)) {
+        txIds.forEach(id => oldTxIds.add(id));
       }
       // Also check State.transactions for transactions created by this shift
       (State.transactions || []).forEach(tx => {
