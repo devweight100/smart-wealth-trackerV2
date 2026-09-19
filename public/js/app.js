@@ -1899,7 +1899,7 @@ function openCreateTransactionModal(defaultType = 'expense') {
   document.body.classList.add('modal-open');
 }
 
-function openEditTransactionModal(id) {
+async function openEditTransactionModal(id) {
   const t = (Array.isArray(State.transactions) ? State.transactions : []).find(tx => tx.id === id);
   if (!t) return;
 
