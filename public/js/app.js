@@ -127,12 +127,21 @@ async function reloadAppData() {
   }
 }
 
-// --- Loading Overlay ---
-function showLoader() {
-  // Lightweight loader visually (handled elegantly by browser speed, can add minor visual cue if needed)
+// --- Loading Overlay (Screen Freeze) ---
+function showLoader(message = 'กำลังประมวลผลข้อมูล กรุณารอสักครู่...', subMessage = 'ระบบกำลังบันทึกและปรับปรุงฐานข้อมูลให้ปลอดภัย') {
+  const overlay = document.getElementById('global-loading-overlay');
+  const textEl = document.getElementById('global-loading-text');
+  const subEl = document.getElementById('global-loading-subtext');
+  if (textEl) textEl.textContent = message;
+  if (subEl) subEl.textContent = subMessage;
+  if (overlay) overlay.style.display = 'flex';
+  document.body.classList.add('loading-locked');
 }
+
 function hideLoader() {
-  // Dismiss loader
+  const overlay = document.getElementById('global-loading-overlay');
+  if (overlay) overlay.style.display = 'none';
+  document.body.classList.remove('loading-locked');
 }
 
 // --- UI Refresh Handlers ---
@@ -3268,14 +3277,14 @@ async function editShiftClosing(id) {
       if (lastRow) {
         const catSelect = lastRow.querySelector('.shift-expense-cat-select');
         const amountInput = lastRow.querySelector('.shift-expense-amount-input');
-        const paySelect = lastRow.querySelector('.shift-expense-payment-select');
-        const accSelect = lastRow.querySelector('.shift-expense-account-select');
+        const accSelect = lastRow.querySelector('.shift-expense-acc-select') || lastRow.querySelector('.shift-expense-account-select');
         const notesInput = lastRow.querySelector('.shift-expense-notes-input');
 
-        if (catSelect) catSelect.value = exp.category;
-        if (amountInput) amountInput.value = exp.amount;
-        if (paySelect) paySelect.value = exp.paymentMethod;
-        if (accSelect) accSelect.value = exp.accountId;
+        if (catSelect && exp.category) catSelect.value = exp.category;
+        if (amountInput && exp.amount !== undefined) amountInput.value = exp.amount;
+        if (accSelect) {
+          accSelect.value = exp.accountId || (exp.paymentMethod === 'Cash' ? 'acc-cash' : 'acc-cash');
+        }
         if (notesInput) notesInput.value = exp.notes || '';
       }
     });
@@ -3341,9 +3350,12 @@ function addShiftExpenseRow() {
   const expenseCategories = (State.categories || []).filter(c => c.type === 'expense');
   const catOptions = expenseCategories.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
   
-  const bankAccounts = (State.accounts || []).filter(a => a.type === 'bank');
   let accOptions = '<option value="acc-cash">เงินสด (Cash)</option>';
-  accOptions += bankAccounts.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
+  (State.accounts || []).forEach(a => {
+    if (a.id !== 'acc-cash' && a.id !== 'acc-unspecified') {
+      accOptions += `<option value="${a.id}">${a.name}</option>`;
+    }
+  });
 
   const container = document.getElementById('shift-expense-rows-container');
   if (!container) return;
@@ -3466,7 +3478,7 @@ async function handleShiftClosingSubmit(e) {
     return;
   }
 
-  showLoader();
+  showLoader('กำลังบันทึกเอกสารปิดกะการขาย...', 'ระบบกำลังบันทึกข้อมูลและกระจายยอดลงบัญชีการเงิน กรุณารอสักครู่');
   let fileUrl = null;
   if (State.shiftPendingFile) {
     try {
@@ -3474,7 +3486,7 @@ async function handleShiftClosingSubmit(e) {
       fileUrl = uploadRes.fileUrl;
     } catch (err) {
       hideLoader();
-      alert('อัปโหลดไฟล์แนบปิดกะล้มเหลว: ' + err.message);
+      alert('❌ อัปโหลดไฟล์แนบปิดกะล้มเหลว!\nสาเหตุ: ' + err.message);
       return;
     }
   }
@@ -3514,7 +3526,7 @@ async function handleShiftClosingSubmit(e) {
         try {
           await API.deleteTransaction(oldTxId);
         } catch (e) {
-          // ignore single tx delete error
+          // ignore if already deleted
         }
       }
     }
@@ -3594,14 +3606,11 @@ async function handleShiftClosingSubmit(e) {
       State.shiftClosings.unshift(shiftDocument);
     }
 
-    try {
-      if (isEditing) {
-        await API.updateShiftClosing(shiftId, shiftDocument);
-      } else {
-        await API.createShiftClosing(shiftDocument);
-      }
-    } catch (dbErr) {
-      console.warn('Could not save shift closing to D1 DB, falling back to LocalStorage:', dbErr);
+    // Save to Database (fail loudly if D1 fails)
+    if (isEditing) {
+      await API.updateShiftClosing(shiftId, shiftDocument);
+    } else {
+      await API.createShiftClosing(shiftDocument);
     }
     saveShiftClosingsToStorage();
 
@@ -3612,7 +3621,8 @@ async function handleShiftClosingSubmit(e) {
     refreshShiftClosingsTable();
     alert(isEditing ? '✅ บันทึกการแก้ไขเอกสารปิดกะการขายสำเร็จ!' : '✅ บันทึกเอกสารปิดกะการขายสำเร็จ! ข้อมูลถูกนำไปกระจายลงบันทึกรายรับ-รายจ่ายเรียบร้อยแล้ว');
   } catch (err) {
-    alert('❌ บันทึกปิดกะล้มเหลว: ' + err.message);
+    console.error('Shift closing submit error:', err);
+    alert('❌ บันทึกเอกสารปิดกะล้มเหลว!\nสาเหตุ: ' + (err.message || err.toString()));
   } finally {
     hideLoader();
   }
