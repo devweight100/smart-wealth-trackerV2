@@ -702,7 +702,7 @@
 
                 <div class="form-group" id="group-account-email" style="margin-bottom: 1.25rem;">
                   <label for="account-alert-email"><i class="fa-solid fa-envelope text-indigo"></i> อีเมลที่ผูกรับแจ้งเตือนจากธนาคาร</label>
-                  <input type="email" id="account-alert-email" placeholder="เช่น panuwhich.a@gmail.com">
+                  <input type="email" id="account-alert-email" class="form-control" placeholder="เช่น panuwhich.a@gmail.com">
                   <span style="font-size:0.75rem; color:var(--text-muted); margin-top:0.25rem; display:block;">
                     * ใช้สำหรับดึงข้อมูลแจ้งเตือนเงินเข้า-ออกอัตโนมัติ (1 เมลผูกได้หลายบัญชี ระบบจะตรวจคู่กับเลขบัญชี)
                   </span>
@@ -1380,24 +1380,24 @@
       <div class="modal-body scrollbar" style="max-height: 70vh; padding: 1.25rem;">
         <!-- Filter Controls -->
         <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1rem; align-items: flex-end; background: var(--bg-hover); padding: 0.85rem 1rem; border-radius: 10px; border: 1px solid var(--border-light);">
-          <div style="flex: 1.5; min-width: 180px;">
-            <label style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">กรองตามบัญชี</label>
-            <select id="bank-alert-filter-acc" style="width: 100%; font-size: 0.85rem;" onchange="loadBankAlertsForModal()">
+          <div class="filter-item" style="flex: 1.5; min-width: 180px;">
+            <label for="bank-alert-filter-acc"><i class="fa-solid fa-building-columns mr-1"></i> กรองตามบัญชี</label>
+            <select id="bank-alert-filter-acc" class="form-control form-control-sm" onchange="loadBankAlertsForModal()">
               <option value="">ทุกบัญชี</option>
             </select>
           </div>
-          <div style="flex: 1.2; min-width: 140px;">
-            <label style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">กรองตามวันที่</label>
-            <input type="date" id="bank-alert-filter-date" style="width: 100%; font-size: 0.85rem;" onchange="loadBankAlertsForModal()">
+          <div class="filter-item" style="flex: 1.2; min-width: 140px;">
+            <label for="bank-alert-filter-date"><i class="fa-regular fa-calendar mr-1"></i> กรองตามวันที่</label>
+            <input type="date" id="bank-alert-filter-date" class="form-control form-control-sm" onchange="loadBankAlertsForModal()">
           </div>
-          <div style="flex: 1; min-width: 130px;">
-            <label style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">สถานะ</label>
-            <select id="bank-alert-filter-status" style="width: 100%; font-size: 0.85rem;" onchange="loadBankAlertsForModal()">
+          <div class="filter-item" style="flex: 1; min-width: 130px;">
+            <label for="bank-alert-filter-status"><i class="fa-solid fa-filter mr-1"></i> สถานะ</label>
+            <select id="bank-alert-filter-status" class="form-control form-control-sm" onchange="loadBankAlertsForModal()">
               <option value="unimported">เฉพาะที่ยังไม่ได้ลงปิดกะ</option>
               <option value="all">ทั้งหมด (รวมที่ลงแล้ว)</option>
             </select>
           </div>
-          <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+          <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: auto;">
             <button type="button" class="btn btn-outline btn-sm" onclick="loadBankAlertsForModal()" title="โหลดข้อมูลใหม่">
               <i class="fa-solid fa-rotate"></i> รีเฟรช
             </button>

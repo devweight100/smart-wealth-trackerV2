@@ -50,7 +50,7 @@ export async function updateAccount(db, id, data) {
     data.accountNumber ?? current.account_number,
     data.bankName ?? current.bank_name,
     data.initialBalance !== undefined ? data.initialBalance : current.initial_balance,
-    data.alertEmail !== undefined ? data.alertEmail : (current.alert_email || null),
+    data.alertEmail !== undefined ? (data.alertEmail ? data.alertEmail.trim() : null) : (current.alert_email || null),
     now, id
   ).run();
   return getAccountById(db, id);

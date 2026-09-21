@@ -1137,7 +1137,18 @@ function refreshAccountsList() {
         <div class="bank-card-info">
           <h4 class="bank-card-name">${acc.name}</h4>
           <span class="bank-card-details">${isCash ? 'เงินสดคงเหลือ' : `${acc.bankName} • เลขบัญชี: ${acc.accountNumber}`}</span>
-          ${acc.alertEmail ? `<div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.35rem; display:flex; align-items:center; gap:0.35rem;"><i class="fa-solid fa-envelope text-indigo"></i> <span style="word-break:break-all;">${acc.alertEmail}</span></div>` : ''}
+          ${!isCash ? `
+            <div style="margin-top:0.4rem; font-size:0.75rem; display:flex; align-items:center; gap:0.4rem;">
+              ${acc.alertEmail ? `
+                <span class="badge badge-indigo" style="font-size:0.7rem; padding:0.15rem 0.5rem; font-weight:600; display:inline-flex; align-items:center; gap:0.3rem;">
+                  <i class="fa-solid fa-envelope"></i> ${acc.alertEmail}
+                </span>` : `
+                <span style="color:var(--text-helper); font-size:0.72rem; display:inline-flex; align-items:center; gap:0.3rem;">
+                  <i class="fa-regular fa-envelope"></i> ยังไม่ได้ผูกอีเมลแจ้งเตือน
+                </span>`
+              }
+            </div>` : ''
+          }
         </div>
 
         <div class="bank-card-balance-section">
@@ -1619,6 +1630,8 @@ function setupEventListeners() {
     const isBank = accTypeSelect.value === 'bank';
     document.getElementById('group-bank-name').style.display = isBank ? 'flex' : 'none';
     document.getElementById('group-account-number').style.display = isBank ? 'flex' : 'none';
+    const groupEmail = document.getElementById('group-account-email');
+    if (groupEmail) groupEmail.style.display = isBank ? 'block' : 'none';
   });
 
   document.getElementById('account-form').addEventListener('submit', handleAccountSubmit);
@@ -2336,12 +2349,13 @@ async function handleAccountSubmit(e) {
   e.preventDefault();
 
   const id = document.getElementById('account-id').value;
-  const name = document.getElementById('account-name').value;
+  const name = document.getElementById('account-name').value.trim();
   const type = document.getElementById('account-type').value;
   const bankName = type === 'bank' ? document.getElementById('account-bank').value : '-';
-  const accountNumber = type === 'bank' ? document.getElementById('account-number').value : '-';
-  const alertEmail = type === 'bank' ? (document.getElementById('account-alert-email')?.value.trim() || null) : null;
-  const initialBalance = Number(document.getElementById('account-initial-balance').value);
+  const accountNumber = type === 'bank' ? document.getElementById('account-number').value.trim() : '-';
+  const emailInput = document.getElementById('account-alert-email');
+  const alertEmail = type === 'bank' ? (emailInput ? emailInput.value.trim() : null) || null : null;
+  const initialBalance = Number(document.getElementById('account-initial-balance').value) || 0;
 
   const accData = {
     name,
@@ -2356,8 +2370,10 @@ async function handleAccountSubmit(e) {
   try {
     if (id) {
       await API.updateAccount(id, accData);
+      alert('✅ บันทึกการแก้ไขบัญชีเรียบร้อยแล้ว');
     } else {
       await API.createAccount(accData);
+      alert('✅ บันทึกบัญชีใหม่เรียบร้อยแล้ว');
     }
     
     resetAccountForm();
@@ -4142,12 +4158,12 @@ function renderBankAlertsModalList() {
         </td>
         <td>
           <div style="position:relative;">
-            <input type="text" class="input-alert-note form-input" data-index="${idx}" 
+            <input type="text" class="input-alert-note form-control form-control-sm" data-index="${idx}" 
               placeholder="ระบุหมายเหตุ เช่น ลูกค้า A" 
               value="${initialNote}" 
-              style="width:100%; font-size:0.85rem; padding:0.35rem 0.6rem; border:1px solid ${hasMemory ? 'var(--indigo)' : 'var(--border-color)'};">
+              style="width:100%; font-size:0.85rem; ${hasMemory ? 'border-color:var(--indigo); background:rgba(99,102,241,0.03);' : ''}">
             ${hasMemory ? `
-              <div style="font-size:0.7rem; color:var(--indigo); font-weight:600; margin-top:0.2rem; display:flex; align-items:center; gap:0.25rem;">
+              <div style="font-size:0.7rem; color:var(--indigo); font-weight:600; margin-top:0.25rem; display:flex; align-items:center; gap:0.25rem;">
                 <i class="fa-solid fa-wand-magic-sparkles"></i> ดึงจากความจำล่าสุด
               </div>` : ''}
           </div>
