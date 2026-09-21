@@ -1137,6 +1137,7 @@ function refreshAccountsList() {
         <div class="bank-card-info">
           <h4 class="bank-card-name">${acc.name}</h4>
           <span class="bank-card-details">${isCash ? 'เงินสดคงเหลือ' : `${acc.bankName} • เลขบัญชี: ${acc.accountNumber}`}</span>
+          ${acc.alertEmail ? `<div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.35rem; display:flex; align-items:center; gap:0.35rem;"><i class="fa-solid fa-envelope text-indigo"></i> <span style="word-break:break-all;">${acc.alertEmail}</span></div>` : ''}
         </div>
 
         <div class="bank-card-balance-section">
@@ -2339,6 +2340,7 @@ async function handleAccountSubmit(e) {
   const type = document.getElementById('account-type').value;
   const bankName = type === 'bank' ? document.getElementById('account-bank').value : '-';
   const accountNumber = type === 'bank' ? document.getElementById('account-number').value : '-';
+  const alertEmail = type === 'bank' ? (document.getElementById('account-alert-email')?.value.trim() || null) : null;
   const initialBalance = Number(document.getElementById('account-initial-balance').value);
 
   const accData = {
@@ -2346,6 +2348,7 @@ async function handleAccountSubmit(e) {
     type,
     bankName,
     accountNumber,
+    alertEmail,
     initialBalance
   };
 
@@ -2376,14 +2379,21 @@ function loadAccountToForm(id) {
   const typeSelect = document.getElementById('account-type');
   typeSelect.value = acc.type;
   
+  const groupEmail = document.getElementById('group-account-email');
   if (acc.type === 'cash') {
     document.getElementById('group-bank-name').style.display = 'none';
     document.getElementById('group-account-number').style.display = 'none';
+    if (groupEmail) groupEmail.style.display = 'none';
   } else {
     document.getElementById('group-bank-name').style.display = 'flex';
     document.getElementById('group-account-number').style.display = 'flex';
+    if (groupEmail) groupEmail.style.display = 'block';
     document.getElementById('account-bank').value = acc.bankName;
     document.getElementById('account-number').value = acc.accountNumber || '';
+  }
+
+  if (document.getElementById('account-alert-email')) {
+    document.getElementById('account-alert-email').value = acc.alertEmail || '';
   }
 
   // For default cash account, prevent changing type to bank
@@ -2410,6 +2420,11 @@ function resetAccountForm() {
   // Reset bank fields display
   document.getElementById('group-bank-name').style.display = 'flex';
   document.getElementById('group-account-number').style.display = 'flex';
+  const groupEmail = document.getElementById('group-account-email');
+  if (groupEmail) groupEmail.style.display = 'block';
+  if (document.getElementById('account-alert-email')) {
+    document.getElementById('account-alert-email').value = '';
+  }
 
   document.getElementById('account-form-title').innerHTML = '<i class="fa-solid fa-plus-minus text-indigo"></i> สร้างบัญชีการเงินใหม่';
   document.getElementById('btn-submit-account').innerText = 'บันทึกบัญชี';
@@ -3251,15 +3266,14 @@ async function editShiftClosing(id) {
   const transfers = shift.transfers || shift.transferIncomes || [];
   if (transfers.length > 0) {
     transfers.forEach(tr => {
-      addShiftTransferAccountRow();
-      const rows = trContainer.querySelectorAll('.shift-dynamic-row');
-      const lastRow = rows[rows.length - 1];
-      if (lastRow) {
-        const select = lastRow.querySelector('.shift-transfer-acc-select');
-        const input = lastRow.querySelector('.shift-transfer-amount-input');
-        if (select) select.value = tr.accountId;
-        if (input) input.value = tr.amount;
-      }
+      addShiftTransferAccountRow({
+        accountId: tr.accountId,
+        amount: tr.amount,
+        notes: tr.notes,
+        counterpartyAccount: tr.counterpartyAccount,
+        counterpartyName: tr.counterpartyName,
+        alertId: tr.alertId
+      });
     });
   } else {
     addShiftTransferAccountRow();
@@ -3271,22 +3285,15 @@ async function editShiftClosing(id) {
   const expenses = shift.expenses || [];
   if (expenses.length > 0) {
     expenses.forEach(exp => {
-      addShiftExpenseRow();
-      const rows = expContainer.querySelectorAll('.shift-dynamic-row');
-      const lastRow = rows[rows.length - 1];
-      if (lastRow) {
-        const catSelect = lastRow.querySelector('.shift-expense-cat-select');
-        const amountInput = lastRow.querySelector('.shift-expense-amount-input');
-        const accSelect = lastRow.querySelector('.shift-expense-acc-select') || lastRow.querySelector('.shift-expense-account-select');
-        const notesInput = lastRow.querySelector('.shift-expense-notes-input');
-
-        if (catSelect && exp.category) catSelect.value = exp.category;
-        if (amountInput && exp.amount !== undefined) amountInput.value = exp.amount;
-        if (accSelect) {
-          accSelect.value = exp.accountId || (exp.paymentMethod === 'Cash' ? 'acc-cash' : 'acc-cash');
-        }
-        if (notesInput) notesInput.value = exp.notes || '';
-      }
+      addShiftExpenseRow({
+        category: exp.category,
+        accountId: exp.accountId || (exp.paymentMethod === 'Cash' ? 'acc-cash' : 'acc-cash'),
+        amount: exp.amount,
+        notes: exp.notes,
+        counterpartyAccount: exp.counterpartyAccount,
+        counterpartyName: exp.counterpartyName,
+        alertId: exp.alertId
+      });
     });
   } else {
     addShiftExpenseRow();
@@ -3314,46 +3321,56 @@ async function editShiftClosing(id) {
   if (submitBtn) submitBtn.innerHTML = `<i class="fa-solid fa-floppy-disk mr-1"></i> บันทึกการแก้ไขเอกสารปิดกะ`;
 }
 
-function addShiftTransferAccountRow() {
+function addShiftTransferAccountRow(data = {}) {
   const bankAccounts = (State.accounts || []).filter(a => a.type === 'bank');
   let optionsHtml = '';
   if (bankAccounts.length === 0) {
     optionsHtml = '<option value="">ไม่มีบัญชีธนาคาร</option>';
   } else {
-    optionsHtml = bankAccounts.map(a => `<option value="${a.id}">${a.name} (${a.bankName || 'ธนาคาร'})</option>`).join('');
+    optionsHtml = bankAccounts.map(a => `<option value="${a.id}" ${data.accountId === a.id ? 'selected' : ''}>${a.name} (${a.bankName || 'ธนาคาร'})</option>`).join('');
   }
 
   const container = document.getElementById('shift-transfer-rows-container');
   if (!container) return;
   const rowId = 'shift-tr-row-' + Date.now() + Math.random().toString(36).substr(2, 4);
   const rowHtml = `
-    <div class="shift-dynamic-row" id="${rowId}" style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap;">
-      <div style="flex: 2; min-width: 200px;">
-        <label style="font-size:0.75rem; font-weight:600; color:var(--text-muted); display:block; margin-bottom:0.2rem;">เลือกบัญชีธนาคารรับเงินโอน</label>
+    <div class="shift-dynamic-row" id="${rowId}" style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap; padding: 0.65rem 0.85rem; background: var(--bg-hover); border-radius: 8px; border: 1px solid var(--border-light); margin-bottom: 0.5rem;">
+      <div style="flex: 1.8; min-width: 170px;">
+        <label style="font-size:0.75rem; font-weight:600; color:var(--text-muted); display:block; margin-bottom:0.2rem;">บัญชีธนาคารที่รับเงิน</label>
         <select class="shift-transfer-acc-select" style="width:100%;" onchange="calculateShiftLiveSummary()">
           ${optionsHtml}
         </select>
       </div>
-      <div style="flex: 1.5; min-width: 150px;">
-        <label style="font-size:0.75rem; font-weight:600; color:var(--text-muted); display:block; margin-bottom:0.2rem;">จำนวนเงินโอน (บาท)</label>
+      <div style="flex: 1.2; min-width: 130px;">
+        <label style="font-size:0.75rem; font-weight:600; color:var(--text-muted); display:block; margin-bottom:0.2rem;">จำนวนเงิน (บาท)</label>
         <div class="input-prefix-group">
           <span class="input-prefix">฿</span>
-          <input type="number" step="0.01" min="0" placeholder="0.00" class="shift-transfer-amount-input" oninput="calculateShiftLiveSummary()">
+          <input type="number" step="0.01" min="0" placeholder="0.00" class="shift-transfer-amount-input" oninput="calculateShiftLiveSummary()" value="${data.amount !== undefined && data.amount > 0 ? data.amount : ''}">
         </div>
       </div>
+      <div style="flex: 2; min-width: 180px;">
+        <label style="font-size:0.75rem; font-weight:600; color:var(--text-muted); display:block; margin-bottom:0.2rem;">
+          หมายเหตุ / บัญชีผู้โอน / ชื่อลูกค้า
+          ${data.hasMemoryMatch ? '<span class="badge badge-indigo" style="font-size:0.65rem; padding:0.1rem 0.35rem; margin-left:0.25rem;">✨ ความจำเดิม</span>' : ''}
+        </label>
+        <input type="text" placeholder="เช่น ลูกค้า A, ยอดโอน" class="shift-transfer-notes-input" style="width:100%;" value="${data.notes || ''}">
+      </div>
+      <input type="hidden" class="shift-transfer-cp-acc" value="${data.counterpartyAccount || ''}">
+      <input type="hidden" class="shift-transfer-cp-name" value="${data.counterpartyName || ''}">
+      <input type="hidden" class="shift-transfer-alert-id" value="${data.alertId || ''}">
       <button type="button" class="btn-remove-row" style="margin-top:1.2rem;" onclick="document.getElementById('${rowId}').remove(); calculateShiftLiveSummary();" title="ลบแถบนี้">&times;</button>
     </div>`;
   container.insertAdjacentHTML('beforeend', rowHtml);
 }
 
-function addShiftExpenseRow() {
+function addShiftExpenseRow(data = {}) {
   const expenseCategories = (State.categories || []).filter(c => c.type === 'expense');
-  const catOptions = expenseCategories.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+  const catOptions = expenseCategories.map(c => `<option value="${c.name}" ${data.category === c.name ? 'selected' : ''}>${c.name}</option>`).join('');
   
-  let accOptions = '<option value="acc-cash">เงินสด (Cash)</option>';
+  let accOptions = `<option value="acc-cash" ${data.accountId === 'acc-cash' ? 'selected' : ''}>เงินสด (Cash)</option>`;
   (State.accounts || []).forEach(a => {
     if (a.id !== 'acc-cash' && a.id !== 'acc-unspecified') {
-      accOptions += `<option value="${a.id}">${a.name}</option>`;
+      accOptions += `<option value="${a.id}" ${data.accountId === a.id ? 'selected' : ''}>${a.name}</option>`;
     }
   });
 
@@ -3361,7 +3378,7 @@ function addShiftExpenseRow() {
   if (!container) return;
   const rowId = 'shift-exp-row-' + Date.now() + Math.random().toString(36).substr(2, 4);
   const rowHtml = `
-    <div class="shift-dynamic-row" id="${rowId}" style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap;">
+    <div class="shift-dynamic-row" id="${rowId}" style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap; padding: 0.65rem 0.85rem; background: var(--bg-hover); border-radius: 8px; border: 1px solid var(--border-light); margin-bottom: 0.5rem;">
       <div style="flex: 1.5; min-width: 150px;">
         <label style="font-size:0.75rem; font-weight:600; color:var(--text-muted); display:block; margin-bottom:0.2rem;">หมวดหมู่รายจ่าย</label>
         <select class="shift-expense-cat-select" style="width:100%;">
@@ -3378,13 +3395,19 @@ function addShiftExpenseRow() {
         <label style="font-size:0.75rem; font-weight:600; color:var(--text-muted); display:block; margin-bottom:0.2rem;">จำนวนเงิน (บาท)</label>
         <div class="input-prefix-group">
           <span class="input-prefix">฿</span>
-          <input type="number" step="0.01" min="0" placeholder="0.00" class="shift-expense-amount-input" oninput="calculateShiftLiveSummary()">
+          <input type="number" step="0.01" min="0" placeholder="0.00" class="shift-expense-amount-input" oninput="calculateShiftLiveSummary()" value="${data.amount !== undefined && data.amount > 0 ? data.amount : ''}">
         </div>
       </div>
       <div style="flex: 2; min-width: 180px;">
-        <label style="font-size:0.75rem; font-weight:600; color:var(--text-muted); display:block; margin-bottom:0.2rem;">หมายเหตุ</label>
-        <input type="text" placeholder="ระบุหมายเหตุ (ถ้ามี)" class="shift-expense-notes-input" style="width:100%;">
+        <label style="font-size:0.75rem; font-weight:600; color:var(--text-muted); display:block; margin-bottom:0.2rem;">
+          หมายเหตุ
+          ${data.hasMemoryMatch ? '<span class="badge badge-indigo" style="font-size:0.65rem; padding:0.1rem 0.35rem; margin-left:0.25rem;">✨ ความจำเดิม</span>' : ''}
+        </label>
+        <input type="text" placeholder="ระบุหมายเหตุ (ถ้ามี)" class="shift-expense-notes-input" style="width:100%;" value="${data.notes || ''}">
       </div>
+      <input type="hidden" class="shift-expense-cp-acc" value="${data.counterpartyAccount || ''}">
+      <input type="hidden" class="shift-expense-cp-name" value="${data.counterpartyName || ''}">
+      <input type="hidden" class="shift-expense-alert-id" value="${data.alertId || ''}">
       <button type="button" class="btn-remove-row" style="margin-top:1.2rem;" onclick="document.getElementById('${rowId}').remove(); calculateShiftLiveSummary();" title="ลบแถบนี้">&times;</button>
     </div>`;
   container.insertAdjacentHTML('beforeend', rowHtml);
@@ -3455,8 +3478,12 @@ async function handleShiftClosingSubmit(e) {
   document.querySelectorAll('#shift-transfer-rows-container .shift-dynamic-row').forEach(row => {
     const accountId = row.querySelector('.shift-transfer-acc-select')?.value;
     const amount = Number(row.querySelector('.shift-transfer-amount-input')?.value) || 0;
+    const notes = row.querySelector('.shift-transfer-notes-input')?.value?.trim() || '';
+    const counterpartyAccount = row.querySelector('.shift-transfer-cp-acc')?.value?.trim() || '';
+    const counterpartyName = row.querySelector('.shift-transfer-cp-name')?.value?.trim() || '';
+    const alertId = row.querySelector('.shift-transfer-alert-id')?.value?.trim() || '';
     if (accountId && amount > 0) {
-      transferEntries.push({ accountId, amount });
+      transferEntries.push({ accountId, amount, notes, counterpartyAccount, counterpartyName, alertId });
     }
   });
 
@@ -3466,10 +3493,13 @@ async function handleShiftClosingSubmit(e) {
     const category = row.querySelector('.shift-expense-cat-select')?.value;
     const accountId = row.querySelector('.shift-expense-acc-select')?.value;
     const amount = Number(row.querySelector('.shift-expense-amount-input')?.value) || 0;
-    const notes = row.querySelector('.shift-expense-notes-input')?.value || '';
+    const notes = row.querySelector('.shift-expense-notes-input')?.value?.trim() || '';
+    const counterpartyAccount = row.querySelector('.shift-expense-cp-acc')?.value?.trim() || '';
+    const counterpartyName = row.querySelector('.shift-expense-cp-name')?.value?.trim() || '';
+    const alertId = row.querySelector('.shift-expense-alert-id')?.value?.trim() || '';
     if (category && amount > 0) {
       const paymentMethod = accountId === 'acc-cash' ? 'Cash' : 'Transfer';
-      expenseEntries.push({ category, paymentMethod, accountId, amount, notes });
+      expenseEntries.push({ category, paymentMethod, accountId, amount, notes, counterpartyAccount, counterpartyName, alertId });
     }
   });
 
@@ -3547,10 +3577,11 @@ async function handleShiftClosingSubmit(e) {
       if (tx?.id) createdTxIds.push(tx.id);
     }
 
-    // 2. Create Transfer Income Transactions per account
+    // 2. Create Transfer Income Transactions (Itemized per transfer)
     for (const tr of transferEntries) {
       const acc = State.accounts.find(a => a.id === tr.accountId);
       const accName = acc ? acc.name : 'บัญชีเงินโอน';
+      const itemNote = tr.notes ? `${tr.notes}` : `${shiftName} - รายรับเงินโอนเข้า ${accName}`;
       const tx = await API.createTransaction({
         date,
         type: 'income',
@@ -3558,12 +3589,29 @@ async function handleShiftClosingSubmit(e) {
         amount: tr.amount,
         paymentMethod: 'Transfer',
         accountId: tr.accountId,
-        notes: `[ปิดกะ #${shiftId}] ${shiftName} - รายรับเงินโอนเข้า ${accName}`
+        notes: `[ปิดกะ #${shiftId}] ${itemNote}`
       });
       if (tx?.id) createdTxIds.push(tx.id);
+
+      // Auto-save counterparty memory if user provided notes and counterparty
+      if (tr.counterpartyAccount && tr.notes) {
+        API.saveCounterpartyMemory({
+          accountId: tr.accountId,
+          counterpartyAccount: tr.counterpartyAccount,
+          counterpartyName: tr.counterpartyName || null,
+          type: 'income',
+          lastNotes: tr.notes,
+          lastCategory: 'POS'
+        }).catch(err => console.warn('Could not save memory:', err));
+      }
+
+      // Mark alert imported if applicable
+      if (tr.alertId) {
+        API.markBankAlertsImported([tr.alertId], shiftId).catch(err => console.warn('Could not mark alert imported:', err));
+      }
     }
 
-    // 3. Create Expense Transactions
+    // 3. Create Expense Transactions (Itemized per expense)
     for (const exp of expenseEntries) {
       const tx = await API.createTransaction({
         date,
@@ -3575,6 +3623,23 @@ async function handleShiftClosingSubmit(e) {
         notes: `[ปิดกะ #${shiftId}] ${exp.notes || exp.category}`
       });
       if (tx?.id) createdTxIds.push(tx.id);
+
+      // Auto-save counterparty memory if expense has counterparty
+      if (exp.counterpartyAccount && exp.notes) {
+        API.saveCounterpartyMemory({
+          accountId: exp.accountId,
+          counterpartyAccount: exp.counterpartyAccount,
+          counterpartyName: exp.counterpartyName || null,
+          type: 'expense',
+          lastNotes: exp.notes,
+          lastCategory: exp.category
+        }).catch(err => console.warn('Could not save memory:', err));
+      }
+
+      // Mark alert imported if applicable
+      if (exp.alertId) {
+        API.markBankAlertsImported([exp.alertId], shiftId).catch(err => console.warn('Could not mark alert imported:', err));
+      }
     }
 
     // Save Shift Document Object
@@ -3918,3 +3983,383 @@ window.openShiftDocumentModal = openShiftDocumentModal;
 window.closeShiftDocumentModal = closeShiftDocumentModal;
 window.printShiftDocument = printShiftDocument;
 window.deleteShiftClosing = deleteShiftClosing;
+
+// ==========================================================================
+// BANK ALERTS & COUNTERPARTY MEMORY SYSTEM
+// ==========================================================================
+State.activeAlertsModalType = 'income'; // 'income' | 'expense'
+State.modalBankAlerts = [];
+
+function openBankAlertsModal(type = 'income') {
+  State.activeAlertsModalType = type;
+  const modal = document.getElementById('modal-bank-alerts');
+  if (!modal) return;
+
+  const titleEl = document.getElementById('bank-alerts-modal-title');
+  if (titleEl) {
+    titleEl.innerText = type === 'income'
+      ? 'ดึงรายการเงินโอนเข้าจากอีเมลแจ้งเตือนธนาคาร'
+      : 'ดึงรายการเงินโอนจ่ายจากอีเมลแจ้งเตือนธนาคาร';
+  }
+
+  // Populate account filter
+  const accSelect = document.getElementById('bank-alert-filter-acc');
+  if (accSelect) {
+    let options = '<option value="">ทุกบัญชี</option>';
+    (State.accounts || []).filter(a => a.type === 'bank').forEach(a => {
+      const emailLabel = a.alertEmail ? ` (${a.alertEmail})` : '';
+      options += `<option value="${a.id}">${a.name}${emailLabel}</option>`;
+    });
+    accSelect.innerHTML = options;
+  }
+
+  // Set default date from shift-date if present
+  const shiftDate = document.getElementById('shift-date')?.value || new Date().toLocaleDateString('sv-SE');
+  const dateInput = document.getElementById('bank-alert-filter-date');
+  if (dateInput && !dateInput.value) {
+    dateInput.value = shiftDate;
+  }
+
+  modal.classList.add('active');
+  document.body.classList.add('modal-open');
+
+  loadBankAlertsForModal();
+}
+
+function closeBankAlertsModal() {
+  const modal = document.getElementById('modal-bank-alerts');
+  if (modal) modal.classList.remove('active');
+  document.body.classList.remove('modal-open');
+}
+
+async function loadBankAlertsForModal() {
+  const container = document.getElementById('bank-alerts-list-container');
+  const countText = document.getElementById('bank-alerts-count-text');
+  if (!container) return;
+
+  container.innerHTML = '<div style="text-align:center; padding:2rem; color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin fa-2x text-indigo"></i><p style="margin-top:0.5rem;">กำลังค้นหารายการแจ้งเตือน...</p></div>';
+
+  const accountId = document.getElementById('bank-alert-filter-acc')?.value || '';
+  const date = document.getElementById('bank-alert-filter-date')?.value || '';
+  const status = document.getElementById('bank-alert-filter-status')?.value || 'unimported';
+
+  try {
+    const alerts = await API.getBankAlerts({
+      accountId,
+      date,
+      all: status === 'all'
+    });
+
+    // Filter by active type (income or expense)
+    const filtered = (alerts || []).filter(a => a.type === State.activeAlertsModalType);
+    State.modalBankAlerts = filtered;
+
+    renderBankAlertsModalList();
+  } catch (err) {
+    console.error('Error loading bank alerts:', err);
+    container.innerHTML = `<div style="text-align:center; padding:2rem; color:var(--rose);"><i class="fa-solid fa-triangle-exclamation fa-2x"></i><p style="margin-top:0.5rem;">เกิดข้อผิดพลาด: ${err.message}</p></div>`;
+    if (countText) countText.innerText = 'โหลดรายการไม่สำเร็จ';
+  }
+}
+
+function renderBankAlertsModalList() {
+  const container = document.getElementById('bank-alerts-list-container');
+  const countText = document.getElementById('bank-alerts-count-text');
+  if (!container) return;
+
+  const alerts = State.modalBankAlerts || [];
+  if (countText) {
+    countText.innerText = `พบรายการแจ้งเตือนทั้งหมด ${alerts.length} รายการ`;
+  }
+
+  if (alerts.length === 0) {
+    container.innerHTML = `
+      <div style="text-align:center; padding:2.5rem 1.5rem; color:var(--text-muted); background:var(--bg-card); border-radius:10px; border:1px dashed var(--border-color);">
+        <i class="fa-regular fa-folder-open fa-3x" style="color:var(--text-light); margin-bottom:0.75rem;"></i>
+        <h4 style="font-size:1rem; font-weight:700; margin-bottom:0.35rem; color:var(--text-main);">ไม่พบรายการแจ้งเตือนตามเงื่อนไขที่ค้นหา</h4>
+        <p style="font-size:0.85rem; max-width:480px; margin:0 auto 1rem;">
+          หากยังไม่ได้เชื่อมต่อ Gmail สามารถกดปุ่ม "เชื่อมต่อ Gmail" ด้านบนเพื่อดูวิธี หรือกดปุ่ม "เพิ่มยอดจำลอง" เพื่อทดลองใช้งานได้ทันทีครับ
+        </p>
+        <div style="display:flex; justify-content:center; gap:0.5rem; flex-wrap:wrap;">
+          <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('bank-alert-filter-date').value = ''; loadBankAlertsForModal();">
+            <i class="fa-solid fa-calendar-xmark mr-1"></i> ล้างตัวกรองวันที่ (ดูทุกวัน)
+          </button>
+          <button type="button" class="btn btn-primary btn-sm" onclick="promptAddManualTestAlert()">
+            <i class="fa-solid fa-plus mr-1"></i> เพิ่มรายการจำลองเพื่อทดสอบ
+          </button>
+        </div>
+      </div>`;
+    updateBankAlertsSelectedSummary();
+    return;
+  }
+
+  let html = `
+    <table class="premium-table compact" style="width:100%;">
+      <thead>
+        <tr>
+          <th style="width: 40px; text-align:center;">
+            <input type="checkbox" id="chk-bank-alert-header" onchange="toggleSelectAllBankAlerts(this.checked)" title="เลือกทั้งหมด">
+          </th>
+          <th style="width: 140px;">วัน-เวลา</th>
+          <th style="width: 160px;">บัญชีธนาคาร</th>
+          <th style="width: 130px; text-align:right;">ยอดเงิน</th>
+          <th style="width: 160px;">คู่ค้า / ผู้โอน</th>
+          <th>หมายเหตุ (จดจำอัตโนมัติ)</th>
+        </tr>
+      </thead>
+      <tbody>`;
+
+  alerts.forEach((alert, idx) => {
+    const isIncome = alert.type === 'income';
+    const amtColor = isIncome ? 'text-amount-inc' : 'text-amount-exp';
+    const prefix = isIncome ? '+' : '-';
+    const accLabel = alert.accountName || alert.accountNumber || 'ไม่ระบุ';
+    const bankBadge = alert.bankName && alert.bankName !== '-' ? `<span style="${getBankBadgeStyle(alert.bankName)}">${alert.bankName}</span>` : '';
+    const timeStr = alert.txTime ? alert.txTime.replace('T', ' ').slice(0, 16) : '-';
+    const initialNote = alert.suggestedNotes || alert.counterpartyName || '';
+    const hasMemory = Boolean(alert.hasMemoryMatch && alert.suggestedNotes);
+
+    html += `
+      <tr class="bank-alert-row ${alert.isImported ? 'opacity-60' : ''}" data-index="${idx}" style="${alert.isImported ? 'background:rgba(0,0,0,0.02);' : ''}">
+        <td style="text-align:center;">
+          <input type="checkbox" class="chk-bank-alert-item" data-index="${idx}" onchange="updateBankAlertsSelectedSummary()" ${alert.isImported ? '' : 'checked'}>
+        </td>
+        <td>
+          <div style="font-size:0.8rem; font-weight:600;">${timeStr}</div>
+          ${alert.isImported ? '<span class="badge badge-slate" style="font-size:0.65rem;">ลงปิดกะแล้ว</span>' : '<span class="badge badge-emerald" style="font-size:0.65rem;">รายการใหม่</span>'}
+        </td>
+        <td>
+          <div style="font-weight:600; font-size:0.85rem;">${accLabel}</div>
+          <div style="font-size:0.75rem; color:var(--text-muted);">${bankBadge} ${alert.accountNumber}</div>
+        </td>
+        <td style="text-align:right;">
+          <div class="${amtColor}" style="font-weight:800; font-size:0.95rem;">${prefix}฿${formatCurrencyNumber(alert.amount)}</div>
+          <div style="font-size:0.7rem; color:var(--text-muted);">${alert.channel || 'Transfer'}</div>
+        </td>
+        <td>
+          <div style="font-size:0.85rem; font-weight:600;">${alert.counterpartyAccount || alert.counterpartyName || '-'}</div>
+          ${alert.counterpartyName && alert.counterpartyAccount ? `<div style="font-size:0.75rem; color:var(--text-muted);">${alert.counterpartyName}</div>` : ''}
+        </td>
+        <td>
+          <div style="position:relative;">
+            <input type="text" class="input-alert-note form-input" data-index="${idx}" 
+              placeholder="ระบุหมายเหตุ เช่น ลูกค้า A" 
+              value="${initialNote}" 
+              style="width:100%; font-size:0.85rem; padding:0.35rem 0.6rem; border:1px solid ${hasMemory ? 'var(--indigo)' : 'var(--border-color)'};">
+            ${hasMemory ? `
+              <div style="font-size:0.7rem; color:var(--indigo); font-weight:600; margin-top:0.2rem; display:flex; align-items:center; gap:0.25rem;">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> ดึงจากความจำล่าสุด
+              </div>` : ''}
+          </div>
+        </td>
+      </tr>`;
+  });
+
+  html += `</tbody></table>`;
+  container.innerHTML = html;
+  updateBankAlertsSelectedSummary();
+}
+
+function toggleSelectAllBankAlerts(selectAll) {
+  document.querySelectorAll('.chk-bank-alert-item').forEach(chk => {
+    chk.checked = selectAll;
+  });
+  const headerChk = document.getElementById('chk-bank-alert-header');
+  if (headerChk) headerChk.checked = selectAll;
+  updateBankAlertsSelectedSummary();
+}
+
+function updateBankAlertsSelectedSummary() {
+  const alerts = State.modalBankAlerts || [];
+  let total = 0;
+  let count = 0;
+
+  document.querySelectorAll('.chk-bank-alert-item').forEach(chk => {
+    if (chk.checked) {
+      const idx = parseInt(chk.getAttribute('data-index'), 10);
+      const item = alerts[idx];
+      if (item) {
+        total += item.amount;
+        count++;
+      }
+    }
+  });
+
+  const sumEl = document.getElementById('bank-alerts-selected-sum');
+  const countEl = document.getElementById('bank-alerts-selected-count');
+  const btnConfirm = document.getElementById('btn-confirm-import-alerts');
+
+  if (sumEl) sumEl.innerText = '฿' + formatCurrencyNumber(total);
+  if (countEl) countEl.innerText = `${count} รายการ`;
+  if (btnConfirm) btnConfirm.disabled = (count === 0);
+}
+
+function confirmImportBankAlerts() {
+  const alerts = State.modalBankAlerts || [];
+  const selectedItems = [];
+
+  document.querySelectorAll('.chk-bank-alert-item').forEach(chk => {
+    if (chk.checked) {
+      const idx = parseInt(chk.getAttribute('data-index'), 10);
+      const item = alerts[idx];
+      if (item) {
+        const noteInput = document.querySelector(`.input-alert-note[data-index="${idx}"]`);
+        const userNote = noteInput ? noteInput.value.trim() : (item.suggestedNotes || '');
+        selectedItems.push({
+          ...item,
+          finalNote: userNote
+        });
+      }
+    }
+  });
+
+  if (selectedItems.length === 0) {
+    alert('กรุณาเลือกรายการอย่างน้อย 1 รายการเพื่อนำเข้า');
+    return;
+  }
+
+  // If active type is income, add to transfer rows
+  if (State.activeAlertsModalType === 'income') {
+    const trContainer = document.getElementById('shift-transfer-rows-container');
+    if (trContainer) {
+      const existingRows = trContainer.querySelectorAll('.shift-dynamic-row');
+      if (existingRows.length === 1) {
+        const onlyRowAmt = existingRows[0].querySelector('.shift-transfer-amount-input')?.value;
+        if (!onlyRowAmt || Number(onlyRowAmt) === 0) {
+          existingRows[0].remove();
+        }
+      }
+    }
+
+    selectedItems.forEach(item => {
+      addShiftTransferAccountRow({
+        accountId: item.accountId || '',
+        amount: item.amount,
+        notes: item.finalNote,
+        counterpartyAccount: item.counterpartyAccount,
+        counterpartyName: item.counterpartyName,
+        alertId: item.id,
+        hasMemoryMatch: item.hasMemoryMatch
+      });
+    });
+  } else {
+    const expContainer = document.getElementById('shift-expense-rows-container');
+    if (expContainer) {
+      const existingRows = expContainer.querySelectorAll('.shift-dynamic-row');
+      if (existingRows.length === 1) {
+        const onlyRowAmt = existingRows[0].querySelector('.shift-expense-amount-input')?.value;
+        if (!onlyRowAmt || Number(onlyRowAmt) === 0) {
+          existingRows[0].remove();
+        }
+      }
+    }
+
+    selectedItems.forEach(item => {
+      addShiftExpenseRow({
+        category: item.suggestedCategory || 'ค่าใช้จ่ายอื่นๆ',
+        accountId: item.accountId || 'acc-cash',
+        amount: item.amount,
+        notes: item.finalNote,
+        counterpartyAccount: item.counterpartyAccount,
+        counterpartyName: item.counterpartyName,
+        alertId: item.id,
+        hasMemoryMatch: item.hasMemoryMatch
+      });
+    });
+  }
+
+  calculateShiftLiveSummary();
+  closeBankAlertsModal();
+
+  const formCard = document.getElementById('shift-form-card');
+  if (formCard) formCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+async function promptAddManualTestAlert() {
+  const bankAccounts = (State.accounts || []).filter(a => a.type === 'bank');
+  if (bankAccounts.length === 0) {
+    alert('กรุณาสร้างบัญชีธนาคารในระบบก่อน');
+    return;
+  }
+
+  const defaultAcc = bankAccounts[0];
+  const amtStr = prompt('ระบุจำนวนเงินจำลอง (บาท):', '500.00');
+  if (!amtStr || isNaN(Number(amtStr)) || Number(amtStr) <= 0) return;
+
+  const cpStr = prompt('ระบุเลขบัญชีคู่ค้า / ผู้โอน (สำหรับทดสอบระบบจดจำความจำล่าสุด):', 'xxx-x-12345-6');
+  if (!cpStr) return;
+
+  const sampleAlert = {
+    id: 'TEST-' + Date.now(),
+    accountNumber: defaultAcc.accountNumber || '123-4-56789-0',
+    accountId: defaultAcc.id,
+    amount: Number(amtStr),
+    type: State.activeAlertsModalType || 'income',
+    counterpartyAccount: cpStr,
+    counterpartyName: 'ลูกค้าทดสอบ',
+    channel: 'PromptPay',
+    txTime: new Date().toISOString()
+  };
+
+  showLoader('กำลังบันทึกรายการทดสอบ...');
+  try {
+    await API.saveBankAlerts([sampleAlert]);
+    hideLoader();
+    await loadBankAlertsForModal();
+  } catch (err) {
+    hideLoader();
+    alert('เกิดข้อผิดพลาด: ' + err.message);
+  }
+}
+
+function openAppsScriptGuideModal() {
+  const modal = document.getElementById('modal-apps-script-guide');
+  if (!modal) return;
+  const pre = document.getElementById('apps-script-code-block');
+  if (pre) {
+    fetch('google-apps-script-bank-alert.js')
+      .then(res => res.text())
+      .then(code => {
+        const currentOrigin = window.location.origin;
+        const customized = code.replace(
+          /WEB_APP_URL:\s*'[^']*'/,
+          `WEB_APP_URL: '${currentOrigin}/api/bank-alerts/incoming'`
+        );
+        pre.innerText = customized;
+      })
+      .catch(() => {
+        pre.innerText = '// กรุณาเปิดไฟล์ google-apps-script-bank-alert.js ในโฟลเดอร์โครงการ';
+      });
+  }
+  modal.classList.add('active');
+  document.body.classList.add('modal-open');
+}
+
+function closeAppsScriptGuideModal() {
+  const modal = document.getElementById('modal-apps-script-guide');
+  if (modal) modal.classList.remove('active');
+  document.body.classList.remove('modal-open');
+}
+
+function copyAppsScriptCode() {
+  const pre = document.getElementById('apps-script-code-block');
+  if (pre && pre.innerText) {
+    navigator.clipboard.writeText(pre.innerText).then(() => {
+      alert('คัดลอกโค้ด Google Apps Script เรียบร้อยแล้ว!');
+    }).catch(() => {
+      alert('ไม่สามารถคัดลอกได้โดยอัตโนมัติ กรุณาลากคลุมและกด Ctrl+C ครับ');
+    });
+  }
+}
+
+window.openBankAlertsModal = openBankAlertsModal;
+window.closeBankAlertsModal = closeBankAlertsModal;
+window.loadBankAlertsForModal = loadBankAlertsForModal;
+window.toggleSelectAllBankAlerts = toggleSelectAllBankAlerts;
+window.updateBankAlertsSelectedSummary = updateBankAlertsSelectedSummary;
+window.confirmImportBankAlerts = confirmImportBankAlerts;
+window.promptAddManualTestAlert = promptAddManualTestAlert;
+window.openAppsScriptGuideModal = openAppsScriptGuideModal;
+window.closeAppsScriptGuideModal = closeAppsScriptGuideModal;
+window.copyAppsScriptCode = copyAppsScriptCode;
+

@@ -500,13 +500,18 @@
 
               <!-- 2. Section 2: Transfer Incomes (Multi Accounts) -->
               <div class="shift-section-box mb-4">
-                <div class="shift-section-header">
+                <div class="shift-section-header flex-between" style="flex-wrap:wrap; gap:0.5rem;">
                   <div class="shift-section-title text-indigo">
                     <i class="fa-solid fa-credit-card"></i> 2. รายรับเงินโอน (แยกตามบัญชีธนาคาร)
                   </div>
-                  <button type="button" class="btn btn-indigo-vibrant" onclick="addShiftTransferAccountRow()">
-                    <i class="fa-solid fa-plus-circle"></i> เพิ่มบัญชีรับเงินโอน
-                  </button>
+                  <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                    <button type="button" class="btn btn-outline btn-sm text-indigo" onclick="openBankAlertsModal('income')" style="font-weight: 600;">
+                      <i class="fa-solid fa-envelope-open-text mr-1"></i> ดึงยอดเงินเข้าจากอีเมล (Sync)
+                    </button>
+                    <button type="button" class="btn btn-indigo-vibrant" onclick="addShiftTransferAccountRow()">
+                      <i class="fa-solid fa-plus-circle"></i> เพิ่มรายการรับเงินโอน
+                    </button>
+                  </div>
                 </div>
                 <div id="shift-transfer-rows-container" style="display: flex; flex-direction: column; gap: 0.85rem; margin-top: 0.8rem;">
                   <!-- Dynamic transfer rows -->
@@ -515,13 +520,18 @@
 
               <!-- 3. Section 3: Expenses Incurred -->
               <div class="shift-section-box mb-4">
-                <div class="shift-section-header">
+                <div class="shift-section-header flex-between" style="flex-wrap:wrap; gap:0.5rem;">
                   <div class="shift-section-title text-rose">
                     <i class="fa-solid fa-receipt"></i> 3. ค่าใช้จ่ายระหว่างวัน (Expenses)
                   </div>
-                  <button type="button" class="btn btn-rose-vibrant" onclick="addShiftExpenseRow()">
-                    <i class="fa-solid fa-plus-circle"></i> เพิ่มรายการรายจ่าย
-                  </button>
+                  <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                    <button type="button" class="btn btn-outline btn-sm text-rose" onclick="openBankAlertsModal('expense')" style="font-weight: 600;">
+                      <i class="fa-solid fa-envelope-open-text mr-1"></i> ดึงยอดเงินจ่ายจากอีเมล
+                    </button>
+                    <button type="button" class="btn btn-rose-vibrant" onclick="addShiftExpenseRow()">
+                      <i class="fa-solid fa-plus-circle"></i> เพิ่มรายการรายจ่าย
+                    </button>
+                  </div>
                 </div>
                 <div id="shift-expense-rows-container" style="display: flex; flex-direction: column; gap: 0.85rem; margin-top: 0.8rem;">
                   <!-- Dynamic expense rows -->
@@ -688,6 +698,14 @@
                       <input type="number" id="account-initial-balance" step="0.01" min="0" placeholder="0.00" required>
                     </div>
                   </div>
+                </div>
+
+                <div class="form-group" id="group-account-email" style="margin-bottom: 1.25rem;">
+                  <label for="account-alert-email"><i class="fa-solid fa-envelope text-indigo"></i> อีเมลที่ผูกรับแจ้งเตือนจากธนาคาร</label>
+                  <input type="email" id="account-alert-email" placeholder="เช่น panuwhich.a@gmail.com">
+                  <span style="font-size:0.75rem; color:var(--text-muted); margin-top:0.25rem; display:block;">
+                    * ใช้สำหรับดึงข้อมูลแจ้งเตือนเงินเข้า-ออกอัตโนมัติ (1 เมลผูกได้หลายบัญชี ระบบจะตรวจคู่กับเลขบัญชี)
+                  </span>
                 </div>
 
                 <div class="form-actions-right">
@@ -1339,6 +1357,116 @@
           <button type="button" class="btn btn-primary" onclick="closeShiftDocumentModal(); if(window.activeShiftModalId) editShiftClosing(window.activeShiftModalId);"><i class="fa-solid fa-pen-to-square mr-1"></i> แก้ไขเอกสารปิดกะนี้</button>
         </div>
         <button type="button" class="btn btn-outline" onclick="closeShiftDocumentModal()">ปิดหน้าต่าง</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Bank Alerts Sync (ดึงข้อมูลเงินโอนจากอีเมล) -->
+  <div class="modal-backdrop" id="modal-bank-alerts" style="z-index: 2100;">
+    <div class="modal-card modal-lg" style="max-width: 920px; width: 95%;">
+      <div class="modal-header flex-between" style="border-bottom: 1px solid var(--border-color);">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <div style="width: 38px; height: 38px; border-radius: 10px; background: rgba(99,102,241,0.12); color: var(--indigo); display: flex; align-items: center; justify-content: center; font-size: 1.15rem;">
+            <i class="fa-solid fa-envelope-open-text"></i>
+          </div>
+          <div>
+            <h3 class="modal-title" style="margin: 0; font-size: 1.15rem;" id="bank-alerts-modal-title">ดึงรายการธุรกรรมจากอีเมลแจ้งเตือนธนาคาร</h3>
+            <p style="margin: 0; font-size: 0.8rem; color: var(--text-muted);">เลือกว่ารายการไหนจะนำมาบันทึก พร้อมระบบจดจำคำตอบ/หมายเหตุล่าสุดอัตโนมัติ</p>
+          </div>
+        </div>
+        <button class="modal-close" onclick="closeBankAlertsModal()">&times;</button>
+      </div>
+
+      <div class="modal-body scrollbar" style="max-height: 70vh; padding: 1.25rem;">
+        <!-- Filter Controls -->
+        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1rem; align-items: flex-end; background: var(--bg-hover); padding: 0.85rem 1rem; border-radius: 10px; border: 1px solid var(--border-light);">
+          <div style="flex: 1.5; min-width: 180px;">
+            <label style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">กรองตามบัญชี</label>
+            <select id="bank-alert-filter-acc" style="width: 100%; font-size: 0.85rem;" onchange="loadBankAlertsForModal()">
+              <option value="">ทุกบัญชี</option>
+            </select>
+          </div>
+          <div style="flex: 1.2; min-width: 140px;">
+            <label style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">กรองตามวันที่</label>
+            <input type="date" id="bank-alert-filter-date" style="width: 100%; font-size: 0.85rem;" onchange="loadBankAlertsForModal()">
+          </div>
+          <div style="flex: 1; min-width: 130px;">
+            <label style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">สถานะ</label>
+            <select id="bank-alert-filter-status" style="width: 100%; font-size: 0.85rem;" onchange="loadBankAlertsForModal()">
+              <option value="unimported">เฉพาะที่ยังไม่ได้ลงปิดกะ</option>
+              <option value="all">ทั้งหมด (รวมที่ลงแล้ว)</option>
+            </select>
+          </div>
+          <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <button type="button" class="btn btn-outline btn-sm" onclick="loadBankAlertsForModal()" title="โหลดข้อมูลใหม่">
+              <i class="fa-solid fa-rotate"></i> รีเฟรช
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm text-indigo" onclick="openAppsScriptGuideModal()" title="คู่มือเชื่อมต่อ Gmail">
+              <i class="fa-solid fa-circle-question mr-1"></i> เชื่อมต่อ Gmail
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm text-slate" onclick="promptAddManualTestAlert()" title="ทดสอบเพิ่มรายการจำลอง">
+              <i class="fa-solid fa-plus-circle mr-1"></i> เพิ่มยอดจำลอง
+            </button>
+          </div>
+        </div>
+
+        <!-- Info / Tip Bar -->
+        <div id="bank-alerts-info-bar" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; font-size: 0.85rem; color: var(--text-muted);">
+          <span id="bank-alerts-count-text">กำลังโหลดรายการ...</span>
+          <div style="display: flex; gap: 0.5rem;">
+            <button type="button" class="btn btn-ghost btn-xs text-indigo font-bold" onclick="toggleSelectAllBankAlerts(true)"><i class="fa-solid fa-check-double mr-1"></i>เลือกทั้งหมด</button>
+            <button type="button" class="btn btn-ghost btn-xs text-slate" onclick="toggleSelectAllBankAlerts(false)"><i class="fa-solid fa-xmark mr-1"></i>ยกเลิกทั้งหมด</button>
+          </div>
+        </div>
+
+        <!-- Table of Alerts -->
+        <div id="bank-alerts-list-container" class="table-container scrollbar" style="max-height: 380px;">
+          <!-- Dynamic Alerts Rendered via JS -->
+        </div>
+      </div>
+
+      <div class="modal-footer flex-between" style="padding: 0.85rem 1.25rem; border-top: 1px solid var(--border-color); background: var(--bg-card);">
+        <div>
+          <span style="font-size: 0.85rem; color: var(--text-muted);">ยอดรวมที่เลือก:</span>
+          <span id="bank-alerts-selected-sum" style="font-size: 1.15rem; font-weight: 800; color: var(--indigo); margin-left: 0.35rem;">฿0.00</span>
+          <span id="bank-alerts-selected-count" class="badge badge-indigo" style="margin-left: 0.5rem;">0 รายการ</span>
+        </div>
+        <div style="display: flex; gap: 0.5rem;">
+          <button type="button" class="btn btn-outline" onclick="closeBankAlertsModal()">ยกเลิก</button>
+          <button type="button" class="btn btn-primary" id="btn-confirm-import-alerts" onclick="confirmImportBankAlerts()">
+            <i class="fa-solid fa-check mr-1"></i> นำรายการที่เลือกเข้าเอกสารปิดกะ
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Google Apps Script Setup Guide -->
+  <div class="modal-backdrop" id="modal-apps-script-guide" style="z-index: 2200;">
+    <div class="modal-card" style="max-width: 680px; width: 95%;">
+      <div class="modal-header flex-between">
+        <h3 class="modal-title"><i class="fa-brands fa-google text-indigo mr-1"></i> คู่มือเชื่อมต่อ Gmail แจ้งเตือนเงินเข้าธนาคาร</h3>
+        <button class="modal-close" onclick="closeAppsScriptGuideModal()">&times;</button>
+      </div>
+      <div class="modal-body scrollbar" style="max-height: 70vh; padding: 1.25rem; font-size: 0.88rem; line-height: 1.6;">
+        <p>คุณสามารถให้ Gmail ส่งรายการแจ้งเตือนเงินเข้าของธนาคาร (เช่น กสิกรไทย KBANK, ไทยพาณิชย์ SCB) เข้าสู่ระบบนี้ได้อัตโนมัติ 100% ฟรีและปลอดภัย:</p>
+        <ol style="padding-left: 1.25rem; margin: 0.75rem 0;">
+          <li>เปิด <a href="https://script.google.com" target="_blank" class="text-indigo font-bold" style="text-decoration:underline;">script.google.com</a> ด้วยบัญชี Gmail ที่ใช้รับแจ้งเตือนจากธนาคาร</li>
+          <li>กด <strong>"New project" (โครงการใหม่)</strong></li>
+          <li>คัดลอกโค้ดสคริปต์ด้านล่างนี้ไปวางแทนที่โค้ดเดิมทั้งหมด</li>
+          <li>ตรวจสอบค่า <code>WEB_APP_URL</code> (ระบบจะใส่ URL ปัจจุบันให้โดยอัตโนมัติ)</li>
+          <li>กดไอคอน <strong>Triggers (รูปนาฬิกาด้านซ้าย)</strong> → กด <strong>Add Trigger</strong> → เลือกฟังก์ชัน <code>syncBankAlerts</code> → เลือก Time-driven ทุกๆ 5 นาที</li>
+        </ol>
+        <div style="margin-top: 1rem;">
+          <div class="flex-between mb-2">
+            <span style="font-weight: 700; font-size: 0.85rem;"><i class="fa-solid fa-code text-indigo mr-1"></i> โค้ด Google Apps Script สำเร็จรูป:</span>
+            <button type="button" class="btn btn-outline btn-xs" onclick="copyAppsScriptCode()"><i class="fa-solid fa-copy mr-1"></i> คัดลอกโค้ด</button>
+          </div>
+          <pre id="apps-script-code-block" style="background:#0f172a; color:#f8fafc; padding:1rem; border-radius:8px; font-size:0.75rem; max-height:220px; overflow-y:auto; white-space:pre-wrap; font-family: monospace;"></pre>
+        </div>
+      </div>
+      <div class="modal-footer" style="text-align: right; padding: 0.75rem 1.25rem;">
+        <button type="button" class="btn btn-primary" onclick="closeAppsScriptGuideModal()">เข้าใจแล้ว</button>
       </div>
     </div>
   </div>

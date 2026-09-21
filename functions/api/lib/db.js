@@ -24,29 +24,33 @@ export async function getAccountById(db, id) {
 
 export async function createAccount(db, data) {
   const now = nowISO();
+  await ensureBankAlertsTables(db);
   await db.prepare(
-    `INSERT INTO accounts (id, name, type, account_number, bank_name, initial_balance, sort_order, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO accounts (id, name, type, account_number, bank_name, initial_balance, sort_order, alert_email, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     data.id, data.name, data.type, data.accountNumber || '-',
-    data.bankName || '-', data.initialBalance || 0, data.sortOrder || 0, now, now
+    data.bankName || '-', data.initialBalance || 0, data.sortOrder || 0,
+    data.alertEmail || null, now, now
   ).run();
   return getAccountById(db, data.id);
 }
 
 export async function updateAccount(db, id, data) {
   const now = nowISO();
+  await ensureBankAlertsTables(db);
   const current = await db.prepare(`SELECT * FROM accounts WHERE id = ? AND deleted_at IS NULL`).bind(id).first();
   if (!current) return null;
 
   await db.prepare(
-    `UPDATE accounts SET name=?, type=?, account_number=?, bank_name=?, initial_balance=?, updated_at=? WHERE id=?`
+    `UPDATE accounts SET name=?, type=?, account_number=?, bank_name=?, initial_balance=?, alert_email=?, updated_at=? WHERE id=?`
   ).bind(
     data.name ?? current.name,
     data.type ?? current.type,
     data.accountNumber ?? current.account_number,
     data.bankName ?? current.bank_name,
     data.initialBalance !== undefined ? data.initialBalance : current.initial_balance,
+    data.alertEmail !== undefined ? data.alertEmail : (current.alert_email || null),
     now, id
   ).run();
   return getAccountById(db, id);
@@ -532,6 +536,7 @@ function toAccountAPI(row) {
     balance        : row.balance !== undefined ? row.balance : row.initial_balance,
     isDefault      : Boolean(row.is_default),
     sortOrder      : row.sort_order,
+    alertEmail     : row.alert_email || null,
     createdAt      : row.created_at,
     deletedAt      : row.deleted_at || null,
   };
@@ -567,4 +572,264 @@ function toTransactionAPI(row) {
     createdAt     : row.created_at,
     deletedAt     : row.deleted_at || null,
   };
+}
+
+// ─── BANK ALERTS & COUNTERPARTY MEMORY ────────────────────────────────────────
+
+export async function ensureBankAlertsTables(db) {
+  try {
+    await db.prepare(`ALTER TABLE accounts ADD COLUMN alert_email TEXT`).run();
+  } catch (e) {
+    // Ignore if column already exists
+  }
+
+  try {
+    await db.prepare(`
+      CREATE TABLE IF NOT EXISTS counterparty_memory (
+        id                   TEXT PRIMARY KEY,
+        account_id           TEXT NOT NULL,
+        counterparty_account TEXT NOT NULL,
+        counterparty_name    TEXT,
+        type                 TEXT NOT NULL,
+        last_notes           TEXT NOT NULL,
+        last_category        TEXT,
+        updated_at           TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(account_id, counterparty_account, type)
+      )
+    `).run();
+    await db.prepare(`CREATE INDEX IF NOT EXISTS idx_cpm_lookup ON counterparty_memory(account_id, counterparty_account, type)`).run();
+  } catch (e) {
+    // Table might already exist
+  }
+
+  try {
+    await db.prepare(`
+      CREATE TABLE IF NOT EXISTS bank_alerts (
+        id                   TEXT PRIMARY KEY,
+        email                TEXT NOT NULL,
+        account_id           TEXT,
+        account_number       TEXT NOT NULL,
+        tx_time              TEXT NOT NULL,
+        type                 TEXT NOT NULL,
+        amount               REAL NOT NULL,
+        counterparty_account TEXT,
+        counterparty_name    TEXT,
+        channel              TEXT,
+        raw_subject          TEXT,
+        raw_snippet          TEXT,
+        is_imported          INTEGER NOT NULL DEFAULT 0,
+        shift_id             TEXT,
+        created_at           TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `).run();
+    await db.prepare(`CREATE INDEX IF NOT EXISTS idx_bank_alerts_acc ON bank_alerts(account_id, tx_time)`).run();
+    await db.prepare(`CREATE INDEX IF NOT EXISTS idx_bank_alerts_status ON bank_alerts(is_imported)`).run();
+  } catch (e) {
+    // Table might already exist
+  }
+}
+
+export async function saveBankAlerts(db, alerts) {
+  await ensureBankAlertsTables(db);
+  const now = nowISO();
+  const saved = [];
+
+  const { results: accounts } = await db.prepare(
+    `SELECT * FROM accounts WHERE deleted_at IS NULL`
+  ).all();
+
+  const cleanNum = (n) => (n || '').replace(/[^0-9]/g, '');
+
+  for (const item of alerts) {
+    if (!item.amount || !item.accountNumber) continue;
+
+    let matchedAcc = null;
+    const itemAccClean = cleanNum(item.accountNumber);
+    const itemEmailClean = (item.email || '').trim().toLowerCase();
+
+    if (item.accountId) {
+      matchedAcc = accounts.find(a => a.id === item.accountId);
+    } else {
+      matchedAcc = accounts.find(a => {
+        const aNumClean = cleanNum(a.account_number);
+        const aEmailClean = (a.alert_email || '').trim().toLowerCase();
+        const emailMatch = !itemEmailClean || !aEmailClean || (itemEmailClean === aEmailClean);
+        const accMatch = (aNumClean.length >= 3 && itemAccClean.length >= 3) &&
+          (aNumClean === itemAccClean || aNumClean.endsWith(itemAccClean) || itemAccClean.endsWith(aNumClean));
+        return emailMatch && accMatch;
+      });
+      if (!matchedAcc) {
+        matchedAcc = accounts.find(a => {
+          const aNumClean = cleanNum(a.account_number);
+          return (aNumClean.length >= 3 && itemAccClean.length >= 3) &&
+            (aNumClean === itemAccClean || aNumClean.endsWith(itemAccClean) || itemAccClean.endsWith(aNumClean));
+        });
+      }
+    }
+
+    const id = item.id || ('ALERT-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6));
+    const accId = matchedAcc ? matchedAcc.id : (item.accountId || null);
+
+    try {
+      await db.prepare(`
+        INSERT INTO bank_alerts (
+          id, email, account_id, account_number, tx_time, type,
+          amount, counterparty_account, counterparty_name, channel,
+          raw_subject, raw_snippet, is_imported, shift_id, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          account_id = COALESCE(excluded.account_id, bank_alerts.account_id),
+          amount = excluded.amount,
+          counterparty_account = COALESCE(excluded.counterparty_account, bank_alerts.counterparty_account),
+          counterparty_name = COALESCE(excluded.counterparty_name, bank_alerts.counterparty_name),
+          channel = COALESCE(excluded.channel, bank_alerts.channel)
+      `).bind(
+        id,
+        item.email || (matchedAcc?.alert_email) || '',
+        accId,
+        item.accountNumber,
+        item.txTime || item.date || now,
+        item.type || 'income',
+        Number(item.amount),
+        item.counterpartyAccount || null,
+        item.counterpartyName || null,
+        item.channel || 'Transfer',
+        item.rawSubject || null,
+        item.rawSnippet || null,
+        item.isImported ? 1 : 0,
+        item.shiftId || null,
+        item.createdAt || now
+      ).run();
+
+      saved.push({ id, accountId: accId, amount: item.amount });
+    } catch (err) {
+      console.error('Error saving bank alert:', err);
+    }
+  }
+
+  return saved;
+}
+
+export async function getBankAlerts(db, options = {}) {
+  await ensureBankAlertsTables(db);
+  const { accountId, date, unimportedOnly = true } = options;
+
+  let sql = `SELECT b.*, a.name as account_name, a.bank_name as bank_name 
+             FROM bank_alerts b 
+             LEFT JOIN accounts a ON b.account_id = a.id 
+             WHERE 1=1`;
+  const params = [];
+
+  if (unimportedOnly) {
+    sql += ` AND b.is_imported = 0`;
+  }
+  if (accountId) {
+    sql += ` AND b.account_id = ?`;
+    params.push(accountId);
+  }
+  if (date) {
+    sql += ` AND substr(b.tx_time, 1, 10) = ?`;
+    params.push(date);
+  }
+
+  sql += ` ORDER BY b.tx_time DESC, b.created_at DESC LIMIT 200`;
+
+  const { results } = await db.prepare(sql).bind(...params).all();
+
+  const memories = await getAllCounterpartyMemories(db);
+  const memMap = {};
+  memories.forEach(m => {
+    const key = `${m.accountId || '*'}_${(m.counterpartyAccount || '').trim()}_${m.type}`;
+    memMap[key] = m;
+    const fallbackKey = `*_${(m.counterpartyAccount || '').trim()}_${m.type}`;
+    if (!memMap[fallbackKey]) memMap[fallbackKey] = m;
+  });
+
+  return (results || []).map(row => {
+    const cpAcc = (row.counterparty_account || '').trim();
+    const type = row.type || 'income';
+    const directKey = `${row.account_id}_${cpAcc}_${type}`;
+    const fallbackKey = `*_${cpAcc}_${type}`;
+    const memory = cpAcc ? (memMap[directKey] || memMap[fallbackKey]) : null;
+
+    return {
+      id: row.id,
+      email: row.email,
+      accountId: row.account_id,
+      accountName: row.account_name,
+      bankName: row.bank_name,
+      accountNumber: row.account_number,
+      txTime: row.tx_time,
+      type: row.type,
+      amount: Number(row.amount),
+      counterpartyAccount: row.counterparty_account,
+      counterpartyName: row.counterparty_name,
+      channel: row.channel,
+      rawSubject: row.raw_subject,
+      rawSnippet: row.raw_snippet,
+      isImported: Boolean(row.is_imported),
+      shiftId: row.shift_id,
+      createdAt: row.created_at,
+      suggestedNotes: memory ? memory.lastNotes : '',
+      suggestedCategory: memory ? memory.lastCategory : '',
+      hasMemoryMatch: Boolean(memory)
+    };
+  });
+}
+
+export async function markBankAlertsImported(db, ids, shiftId = null) {
+  if (!ids || ids.length === 0) return;
+  await ensureBankAlertsTables(db);
+  for (const id of ids) {
+    await db.prepare(`UPDATE bank_alerts SET is_imported = 1, shift_id = COALESCE(?, shift_id) WHERE id = ?`).bind(shiftId, id).run();
+  }
+}
+
+export async function upsertCounterpartyMemory(db, data) {
+  await ensureBankAlertsTables(db);
+  const now = nowISO();
+  const id = `MEM-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+
+  await db.prepare(`
+    INSERT INTO counterparty_memory (
+      id, account_id, counterparty_account, counterparty_name, type, last_notes, last_category, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(account_id, counterparty_account, type) DO UPDATE SET
+      last_notes = excluded.last_notes,
+      last_category = COALESCE(excluded.last_category, counterparty_memory.last_category),
+      counterparty_name = COALESCE(excluded.counterparty_name, counterparty_memory.counterparty_name),
+      updated_at = excluded.updated_at
+  `).bind(
+    id,
+    data.accountId,
+    (data.counterpartyAccount || '').trim(),
+    data.counterpartyName || null,
+    data.type || 'income',
+    data.lastNotes || '',
+    data.lastCategory || null,
+    now
+  ).run();
+}
+
+export async function getAllCounterpartyMemories(db, accountId = null) {
+  await ensureBankAlertsTables(db);
+  let sql = `SELECT * FROM counterparty_memory`;
+  const params = [];
+  if (accountId) {
+    sql += ` WHERE account_id = ?`;
+    params.push(accountId);
+  }
+  sql += ` ORDER BY updated_at DESC`;
+
+  const { results } = await db.prepare(sql).bind(...params).all();
+  return (results || []).map(r => ({
+    id: r.id,
+    accountId: r.account_id,
+    counterpartyAccount: r.counterparty_account,
+    counterpartyName: r.counterparty_name,
+    type: r.type,
+    lastNotes: r.last_notes,
+    lastCategory: r.last_category,
+    updatedAt: r.updated_at
+  }));
 }

@@ -338,6 +338,56 @@ const API = {
     if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'ลบปิดกะจากฐานข้อมูลไม่สำเร็จ'); }
     return res.json();
   },
+
+  // ─── Bank Alerts & Counterparty Memory ───────────────────────────────────────
+
+  async getBankAlerts(params = {}) {
+    const query = new URLSearchParams();
+    if (params.accountId) query.set('accountId', params.accountId);
+    if (params.date) query.set('date', params.date);
+    if (params.all) query.set('all', '1');
+    const qs = query.toString() ? `?${query.toString()}` : '';
+    const res = await fetchWithAuth(`${API_BASE_URL}/api/bank-alerts${qs}`);
+    if (!res.ok) throw new Error('ไม่สามารถดึงรายการแจ้งเตือนจากธนาคารได้');
+    return res.json();
+  },
+
+  async saveBankAlerts(alerts) {
+    const res = await fetchWithAuth(`${API_BASE_URL}/api/bank-alerts`, {
+      method : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body   : JSON.stringify(alerts),
+    });
+    if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'บันทึกรายการแจ้งเตือนไม่สำเร็จ'); }
+    return res.json();
+  },
+
+  async markBankAlertsImported(ids, shiftId = null) {
+    const res = await fetchWithAuth(`${API_BASE_URL}/api/bank-alerts/mark-imported`, {
+      method : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body   : JSON.stringify({ ids, shiftId }),
+    });
+    if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'อัปเดตสถานะนำเข้าไม่สำเร็จ'); }
+    return res.json();
+  },
+
+  async saveCounterpartyMemory(data) {
+    const res = await fetchWithAuth(`${API_BASE_URL}/api/bank-alerts/save-memory`, {
+      method : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body   : JSON.stringify(data),
+    });
+    if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'บันทึกความจำคู่ค้าไม่สำเร็จ'); }
+    return res.json();
+  },
+
+  async getCounterpartyMemories(accountId = null) {
+    const qs = accountId ? `?accountId=${encodeURIComponent(accountId)}` : '';
+    const res = await fetchWithAuth(`${API_BASE_URL}/api/bank-alerts/memories${qs}`);
+    if (!res.ok) throw new Error('ไม่สามารถดึงข้อมูลความจำคู่ค้าได้');
+    return res.json();
+  },
 };
 
 window.API = API;

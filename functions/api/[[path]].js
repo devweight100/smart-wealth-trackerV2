@@ -20,6 +20,8 @@ import {
   getUsers, createUser, updateUserPassword, toggleUserActive,
   exportAllData, getTrash, getAuditLogs, getDashboardStats,
   getShiftClosings, createShiftClosing, updateShiftClosing, deleteShiftClosing,
+  saveBankAlerts, getBankAlerts, markBankAlertsImported,
+  upsertCounterpartyMemory, getAllCounterpartyMemories,
 } from './lib/db.js';
 
 import { writeAudit, requestInfo } from './lib/audit.js';
@@ -225,6 +227,35 @@ export async function onRequest(context) {
     // ── TEST: Send LINE Notify ping (admin only, after auth) ─────────────────
     // เรียก: POST /api/test-line  (ต้องล็อกอินก่อน)
     // ใช้ทดสอบว่า LINE Notify token ถูกต้องไหม
+
+    // ── INCOMING BANK ALERTS (Webhook / Google Apps Script / Integration) ────
+    if (path === '/bank-alerts/incoming' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const incomingSecret = request.headers.get('x-api-key') || url.searchParams.get('secret') || body.secret;
+      const expectedSecret = env.BANK_ALERT_SECRET || 'swt-secret-bank-alert';
+
+      // Check secret or session token
+      let authorized = (incomingSecret && incomingSecret === expectedSecret);
+      if (!authorized) {
+        const token = extractToken(request);
+        if (token) {
+          const s = await validateSession(db, token);
+          if (s) authorized = true;
+        }
+      }
+
+      if (!authorized) {
+        return err('Unauthorized: Secret key หรือ Session token ไม่ถูกต้อง', 401);
+      }
+
+      const list = Array.isArray(body) ? body : (body.alerts || (body.accountNumber ? [body] : []));
+      if (!list.length) {
+        return err('ไม่พบข้อมูลรายการ alerts ในคำขอ', 400);
+      }
+
+      const saved = await saveBankAlerts(db, list);
+      return json({ message: `บันทึกรายการแจ้งเตือนสำเร็จ ${saved.length} รายการ`, count: saved.length, saved }, 201);
+    }
 
     // ── AUTHENTICATE ────────────────────────────────────────────────────────
     const token   = extractToken(request);
@@ -585,6 +616,41 @@ export async function onRequest(context) {
         await writeAudit(db, { ...session, action: 'delete', resource: 'shift_closing', resourceId: id, ...info });
         return json({ message: 'ลบเอกสารปิดกะสำเร็จ' });
       }
+    }
+
+    // ── BANK ALERTS & COUNTERPARTY MEMORY ─────────────────────────────────────
+    if (path === '/bank-alerts') {
+      if (method === 'GET') {
+        const accountId = url.searchParams.get('accountId');
+        const date = url.searchParams.get('date');
+        const unimportedOnly = url.searchParams.get('all') !== '1';
+        const alerts = await getBankAlerts(db, { accountId, date, unimportedOnly });
+        return json(alerts);
+      }
+      if (method === 'POST') {
+        const body = await request.json();
+        const list = Array.isArray(body) ? body : (body.alerts || [body]);
+        const saved = await saveBankAlerts(db, list);
+        return json({ message: `บันทึกรายการแจ้งเตือนสำเร็จ ${saved.length} รายการ`, count: saved.length, saved }, 201);
+      }
+    }
+
+    if (path === '/bank-alerts/mark-imported' && method === 'POST') {
+      const body = await request.json();
+      await markBankAlertsImported(db, body.ids || [], body.shiftId || null);
+      return json({ message: 'อัปเดตสถานะนำเข้ารายการสำเร็จ' });
+    }
+
+    if (path === '/bank-alerts/save-memory' && method === 'POST') {
+      const body = await request.json();
+      await upsertCounterpartyMemory(db, body);
+      return json({ message: 'บันทึกความจำคู่ค้าสำเร็จ' });
+    }
+
+    if (path === '/bank-alerts/memories' && method === 'GET') {
+      const accountId = url.searchParams.get('accountId');
+      const memories = await getAllCounterpartyMemories(db, accountId);
+      return json(memories);
     }
 
     // ── FILE UPLOAD ───────────────────────────────────────────────────────────
