@@ -18,6 +18,14 @@ const State = {
     page: 1,
     limit: 10
   },
+  shiftPagination: {
+    page: 1,
+    limit: 10
+  },
+  txTotal: 0,
+  txBatchPage: 1,
+  shiftTotal: 0,
+  shiftBatchPage: 1,
   reportFilter: {
     period: 'this-month',
     startDate: '',
@@ -79,27 +87,36 @@ function updateHeaderDate() {
 async function reloadAppData() {
   showLoader();
   try {
-    // Parallel fetch for speed — load up to 500 transactions for Dashboard/Charts
-    console.log('[SWT] Starting reloadAppData...');
-    const [accounts, categories, txResult, shiftClosings] = await Promise.all([
+    // Fetch initial 100 transactions and 100 shift closings from DB
+    console.log('[SWT] Starting reloadAppData (100 items batch)...');
+    const [accounts, categories, txResult, shiftResult] = await Promise.all([
       API.getAccounts(),
       API.getCategories(),
-      API.getTransactions({ limit: 500, page: 1 }),
-      API.getShiftClosings().catch(() => [])
+      API.getTransactions({ limit: 100, page: 1 }),
+      API.getShiftClosings({ limit: 100, page: 1 }).catch(() => ({ data: [], total: 0 }))
     ]);
-
-    console.log('[SWT] txResult type:', typeof txResult, Array.isArray(txResult), txResult?.data ? 'has .data' : 'no .data');
 
     State.accounts     = Array.isArray(accounts)    ? accounts    : [];
     State.categories   = Array.isArray(categories)  ? categories  : [];
-    // API returns { data, total, pages, ... } — always extract .data array
+    
+    // Transactions batch
     const txData = txResult?.data ?? txResult;
     State.transactions = Array.isArray(txData) ? txData : [];
     State.txTotal      = txResult?.total  ?? State.transactions.length;
-    State.txPages      = txResult?.pages  ?? 1;
-    State.shiftClosings = Array.isArray(shiftClosings) && shiftClosings.length > 0 ? shiftClosings : JSON.parse(localStorage.getItem('smart_wealth_shift_closings') || '[]');
+    State.txBatchPage  = 1;
+    State.txPages      = txResult?.pages  ?? Math.ceil(State.txTotal / 100);
 
-    console.log('[SWT] State.transactions length:', State.transactions.length, 'isArray:', Array.isArray(State.transactions));
+    // Shift closings batch
+    const shiftData = shiftResult?.data ?? (Array.isArray(shiftResult) ? shiftResult : []);
+    State.shiftClosings = Array.isArray(shiftData) && shiftData.length > 0 
+      ? shiftData 
+      : JSON.parse(localStorage.getItem('smart_wealth_shift_closings') || '[]');
+    State.shiftTotal     = shiftResult?.total ?? State.shiftClosings.length;
+    State.shiftBatchPage = 1;
+    State.shiftPages     = shiftResult?.pages ?? Math.ceil(State.shiftTotal / 100);
+
+    console.log('[SWT] Loaded transactions:', State.transactions.length, '/', State.txTotal);
+    console.log('[SWT] Loaded shiftClosings:', State.shiftClosings.length, '/', State.shiftTotal);
 
     // Refresh UI Components
     console.log('[SWT] populateFilterDropdowns...');
@@ -754,8 +771,35 @@ function refreshTransactionsTable() {
   });
 }
 
+// On-demand fetching for transactions when navigating beyond currently loaded batch
+async function fetchMoreTransactionsIfNeeded(targetPage) {
+  const limit = State.pagination.limit || 10;
+  const neededIndex = targetPage * limit;
+  
+  if (neededIndex > State.transactions.length && State.transactions.length < State.txTotal) {
+    const nextBatchPage = Math.floor(State.transactions.length / 100) + 1;
+    showLoader();
+    try {
+      const res = await API.getTransactions({ page: nextBatchPage, limit: 100 });
+      const newItems = res?.data ?? (Array.isArray(res) ? res : []);
+      if (newItems && newItems.length > 0) {
+        const existingIds = new Set(State.transactions.map(t => t.id));
+        const uniqueItems = newItems.filter(t => !existingIds.has(t.id));
+        State.transactions = [...State.transactions, ...uniqueItems];
+        State.txTotal = res.total || State.transactions.length;
+        State.txBatchPage = nextBatchPage;
+      }
+    } catch (err) {
+      console.error('Error fetching more transactions:', err);
+    } finally {
+      hideLoader();
+    }
+  }
+}
+
 function renderPaginationControls(totalPages) {
   const pagDiv = document.getElementById('table-pagination');
+  if (!pagDiv) return;
   pagDiv.innerHTML = '';
 
   const currentPage = State.pagination.page;
@@ -765,9 +809,10 @@ function renderPaginationControls(totalPages) {
   prevBtn.className = 'pagination-btn';
   prevBtn.innerHTML = '<i class="fa-solid fa-chevron-left"></i>';
   prevBtn.disabled = currentPage === 1;
-  prevBtn.onclick = () => {
+  prevBtn.onclick = async () => {
     if (State.pagination.page > 1) {
       State.pagination.page--;
+      await fetchMoreTransactionsIfNeeded(State.pagination.page);
       refreshTransactionsTable();
     }
   };
@@ -824,8 +869,9 @@ function renderPaginationControls(totalPages) {
       const btn = document.createElement('button');
       btn.className = `pagination-btn ${item === currentPage ? 'active' : ''}`;
       btn.innerText = item;
-      btn.onclick = () => {
+      btn.onclick = async () => {
         State.pagination.page = item;
+        await fetchMoreTransactionsIfNeeded(item);
         refreshTransactionsTable();
       };
       pagDiv.appendChild(btn);
@@ -837,9 +883,10 @@ function renderPaginationControls(totalPages) {
   nextBtn.className = 'pagination-btn';
   nextBtn.innerHTML = '<i class="fa-solid fa-chevron-right"></i>';
   nextBtn.disabled = currentPage === totalPages;
-  nextBtn.onclick = () => {
+  nextBtn.onclick = async () => {
     if (State.pagination.page < totalPages) {
       State.pagination.page++;
+      await fetchMoreTransactionsIfNeeded(State.pagination.page);
       refreshTransactionsTable();
     }
   };
@@ -4144,6 +4191,32 @@ async function handleShiftClosingSubmit(e) {
   }
 }
 
+// On-demand fetching for shift closings when navigating beyond currently loaded batch
+async function fetchMoreShiftsIfNeeded(targetPage) {
+  const limit = State.shiftPagination.limit || 10;
+  const neededIndex = targetPage * limit;
+
+  if (neededIndex > State.shiftClosings.length && State.shiftClosings.length < State.shiftTotal) {
+    const nextBatchPage = Math.floor(State.shiftClosings.length / 100) + 1;
+    showLoader();
+    try {
+      const res = await API.getShiftClosings({ page: nextBatchPage, limit: 100 });
+      const newItems = res?.data ?? (Array.isArray(res) ? res : []);
+      if (newItems && newItems.length > 0) {
+        const existingIds = new Set(State.shiftClosings.map(s => s.id));
+        const uniqueItems = newItems.filter(s => !existingIds.has(s.id));
+        State.shiftClosings = [...State.shiftClosings, ...uniqueItems];
+        State.shiftTotal = res.total || State.shiftClosings.length;
+        State.shiftBatchPage = nextBatchPage;
+      }
+    } catch (err) {
+      console.error('Error fetching more shifts:', err);
+    } finally {
+      hideLoader();
+    }
+  }
+}
+
 function refreshShiftClosingsTable() {
   const tbody = document.getElementById('shift-closings-table-body');
   if (!tbody) return;
@@ -4163,7 +4236,30 @@ function refreshShiftClosingsTable() {
     return true;
   });
 
-  if (filtered.length === 0) {
+  const totalEntries = (!searchQ && !filterDate) ? Math.max(filtered.length, State.shiftTotal || 0) : filtered.length;
+  const limit = State.shiftPagination.limit || 10;
+  const totalPages = Math.max(1, Math.ceil(totalEntries / limit));
+
+  if (State.shiftPagination.page > totalPages) {
+    State.shiftPagination.page = totalPages;
+  }
+
+  const startIndex = (State.shiftPagination.page - 1) * limit;
+  const endIndex = Math.min(startIndex + limit, totalEntries);
+  const paginatedData = filtered.slice(startIndex, endIndex);
+
+  // Render Table Entries Info
+  const entriesInfoEl = document.getElementById('shift-table-entries-info');
+  if (entriesInfoEl) {
+    entriesInfoEl.innerText = totalEntries > 0 
+      ? `แสดง ${startIndex + 1} ถึง ${Math.min(endIndex, filtered.length)} จากทั้งหมด ${totalEntries} รายการ` 
+      : 'แสดง 0 ถึง 0 จากทั้งหมด 0 รายการ';
+  }
+
+  // Render Shift Pagination buttons
+  renderShiftPaginationControls(totalPages);
+
+  if (paginatedData.length === 0) {
     tbody.innerHTML = `
       <tr>
         <td colspan="9" class="text-center py-12 text-slate">
@@ -4174,7 +4270,7 @@ function refreshShiftClosingsTable() {
     return;
   }
 
-  filtered.forEach(shift => {
+  paginatedData.forEach(shift => {
     let attachmentBtn = '';
     if (shift.fileUrl) {
       const ext = shift.fileUrl.split('.').pop().toLowerCase();
@@ -4220,9 +4316,106 @@ function refreshShiftClosingsTable() {
   });
 }
 
+function renderShiftPaginationControls(totalPages) {
+  const pagDiv = document.getElementById('shift-table-pagination');
+  if (!pagDiv) return;
+  pagDiv.innerHTML = '';
+
+  const currentPage = State.shiftPagination.page;
+
+  // Previous btn
+  const prevBtn = document.createElement('button');
+  prevBtn.className = 'pagination-btn';
+  prevBtn.innerHTML = '<i class="fa-solid fa-chevron-left"></i>';
+  prevBtn.disabled = currentPage === 1;
+  prevBtn.onclick = async () => {
+    if (State.shiftPagination.page > 1) {
+      State.shiftPagination.page--;
+      await fetchMoreShiftsIfNeeded(State.shiftPagination.page);
+      refreshShiftClosingsTable();
+    }
+  };
+  pagDiv.appendChild(prevBtn);
+
+  // Determine pages range to show
+  const range = [];
+  if (totalPages <= 7) {
+    for (let i = 1; i <= totalPages; i++) {
+      range.push(i);
+    }
+  } else {
+    range.push(1);
+
+    let start = Math.max(2, currentPage - 1);
+    let end = Math.min(totalPages - 1, currentPage + 1);
+
+    if (currentPage <= 4) {
+      end = 5;
+    } else if (currentPage >= totalPages - 3) {
+      start = totalPages - 4;
+    }
+
+    if (start > 2) {
+      range.push('...');
+    }
+
+    for (let i = start; i <= end; i++) {
+      range.push(i);
+    }
+
+    if (end < totalPages - 1) {
+      range.push('...');
+    }
+
+    range.push(totalPages);
+  }
+
+  // Numeric buttons & ellipses
+  range.forEach(item => {
+    if (item === '...') {
+      const span = document.createElement('span');
+      span.className = 'pagination-ellipsis';
+      span.innerText = '...';
+      span.style.width = '32px';
+      span.style.height = '32px';
+      span.style.display = 'inline-flex';
+      span.style.alignItems = 'center';
+      span.style.justifyContent = 'center';
+      span.style.color = 'var(--text-helper)';
+      span.style.fontWeight = '600';
+      pagDiv.appendChild(span);
+    } else {
+      const btn = document.createElement('button');
+      btn.className = `pagination-btn ${item === currentPage ? 'active' : ''}`;
+      btn.innerText = item;
+      btn.onclick = async () => {
+        State.shiftPagination.page = item;
+        await fetchMoreShiftsIfNeeded(item);
+        refreshShiftClosingsTable();
+      };
+      pagDiv.appendChild(btn);
+    }
+  });
+
+  // Next btn
+  const nextBtn = document.createElement('button');
+  nextBtn.className = 'pagination-btn';
+  nextBtn.innerHTML = '<i class="fa-solid fa-chevron-right"></i>';
+  nextBtn.disabled = currentPage === totalPages;
+  nextBtn.onclick = async () => {
+    if (State.shiftPagination.page < totalPages) {
+      State.shiftPagination.page++;
+      await fetchMoreShiftsIfNeeded(State.shiftPagination.page);
+      refreshShiftClosingsTable();
+    }
+  };
+  pagDiv.appendChild(nextBtn);
+}
+
 function resetShiftFilters() {
   if (document.getElementById('shift-search-input')) document.getElementById('shift-search-input').value = '';
   if (document.getElementById('shift-filter-date')) document.getElementById('shift-filter-date').value = '';
+  State.shiftPagination.page = 1;
   refreshShiftClosingsTable();
 }
 

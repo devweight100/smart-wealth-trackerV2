@@ -307,8 +307,15 @@ const API = {
 
   // ─── Shift Closings (Cloudflare D1 Database) ─────────────────────────────────
 
-  async getShiftClosings() {
-    const res = await fetchWithAuth(`${API_BASE_URL}/api/shift-closings`);
+  async getShiftClosings(params = {}) {
+    const qs = new URLSearchParams();
+    if (params.page)    qs.set('page', params.page);
+    if (params.limit)   qs.set('limit', params.limit);
+    if (params.date)    qs.set('date', params.date);
+    if (params.keyword) qs.set('keyword', params.keyword);
+    if (params.all)     qs.set('all', '1');
+
+    const res = await fetchWithAuth(`${API_BASE_URL}/api/shift-closings?${qs}`);
     if (!res.ok) throw new Error('ไม่สามารถโหลดประวัติปิดกะจากฐานข้อมูลได้');
     return res.json();
   },

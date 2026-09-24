@@ -592,7 +592,13 @@ export async function onRequest(context) {
     // ── SHIFT CLOSINGS ────────────────────────────────────────────────────────
     if (path === '/shift-closings') {
       if (method === 'GET') {
-        const shifts = await getShiftClosings(db);
+        const page = parseInt(url.searchParams.get('page') || '1');
+        const limit = parseInt(url.searchParams.get('limit') || '100');
+        const date = url.searchParams.get('date') || undefined;
+        const keyword = url.searchParams.get('keyword') || undefined;
+        const all = url.searchParams.get('all') === '1';
+
+        const shifts = await getShiftClosings(db, { page, limit, date, keyword, all });
         return json(shifts);
       }
       if (method === 'POST') {

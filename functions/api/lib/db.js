@@ -358,7 +358,7 @@ export async function getDashboardStats(db) {
 
 // ─── SHIFT CLOSINGS ───────────────────────────────────────────────────────────
 
-export async function getShiftClosings(db) {
+export async function getShiftClosings(db, opts = {}) {
   // Ensure shift_closings table exists
   try {
     await db.prepare(`
@@ -385,14 +385,52 @@ export async function getShiftClosings(db) {
     console.error('Error creating shift_closings table:', err);
   }
 
+  const { page = 1, limit = 100, date, keyword, all = false } = opts;
+
   try {
+    const where = ['deleted_at IS NULL'];
+    const params = [];
+
+    if (date) {
+      where.push('date = ?');
+      params.push(date);
+    }
+    if (keyword) {
+      where.push('(shift_name LIKE ? OR id LIKE ?)');
+      params.push(`%${keyword}%`, `%${keyword}%`);
+    }
+
+    const whereClause = `WHERE ${where.join(' AND ')}`;
+
+    // Total count
+    const countRow = await db.prepare(
+      `SELECT COUNT(*) as total FROM shift_closings ${whereClause}`
+    ).bind(...params).first();
+
+    const total = countRow?.total || 0;
+
+    if (all) {
+      const { results } = await db.prepare(
+        `SELECT * FROM shift_closings ${whereClause} ORDER BY date DESC, created_at DESC`
+      ).bind(...params).all();
+      return (results || []).map(toShiftClosingAPI);
+    }
+
+    const offset = Math.max(0, (page - 1) * limit);
     const { results } = await db.prepare(
-      `SELECT * FROM shift_closings WHERE deleted_at IS NULL ORDER BY date DESC, created_at DESC`
-    ).all();
-    return (results || []).map(toShiftClosingAPI);
+      `SELECT * FROM shift_closings ${whereClause} ORDER BY date DESC, created_at DESC LIMIT ? OFFSET ?`
+    ).bind(...params, limit, offset).all();
+
+    return {
+      data  : (results || []).map(toShiftClosingAPI),
+      total,
+      page,
+      limit,
+      pages : Math.ceil(total / limit) || 1,
+    };
   } catch (err) {
     console.error('Error fetching shift_closings:', err);
-    return [];
+    return all ? [] : { data: [], total: 0, page, limit, pages: 1 };
   }
 }
 
