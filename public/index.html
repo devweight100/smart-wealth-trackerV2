@@ -802,40 +802,278 @@
         <!-- 5. REPORTS & EXPORT VIEW -->
         <section class="tab-view" id="view-reports">
           
-          <div class="reports-layout">
-            <!-- Left Side: Excel Export Prominent Banner -->
+          <!-- Period Selector & Header Control -->
+          <div class="reports-header-box">
+            <div class="reports-header-top">
+              <div class="reports-header-title">
+                <i class="fa-solid fa-chart-pie"></i>
+                <span>ศูนย์วิเคราะห์และรายงานสรุปทางการเงิน (Financial Analytics)</span>
+              </div>
+              <div class="period-pills-group" id="report-period-pills">
+                <button type="button" class="period-pill-btn active" data-period="this-month">
+                  <i class="fa-regular fa-calendar"></i> เดือนนี้
+                </button>
+                <button type="button" class="period-pill-btn" data-period="last-month">
+                  <i class="fa-solid fa-arrow-left"></i> เดือนที่แล้ว
+                </button>
+                <button type="button" class="period-pill-btn" data-period="last-30-days">
+                  <i class="fa-solid fa-clock-rotate-left"></i> 30 วันล่าสุด
+                </button>
+                <button type="button" class="period-pill-btn" data-period="this-year">
+                  <i class="fa-solid fa-calendar-days"></i> ปีนี้
+                </button>
+                <button type="button" class="period-pill-btn" data-period="custom">
+                  <i class="fa-solid fa-sliders"></i> กำหนดเอง
+                </button>
+              </div>
+            </div>
+
+            <!-- Custom Period Date Range Inputs -->
+            <div class="reports-custom-period-bar">
+              <div class="reports-date-inputs">
+                <span class="text-xs font-bold text-slate">ตั้งแต่วันที่:</span>
+                <input type="date" id="report-date-start">
+                <span class="text-xs font-bold text-slate">ถึง:</span>
+                <input type="date" id="report-date-end">
+                <button class="btn btn-primary btn-sm" id="btn-apply-report-period">
+                  <i class="fa-solid fa-filter"></i> วิเคราะห์ข้อมูล
+                </button>
+              </div>
+              <div class="reports-period-badge" id="report-period-badge">
+                <i class="fa-regular fa-calendar-check"></i>
+                <span id="report-period-label">กำลังโหลดช่วงเวลา...</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 1. KPI Financial Overview Grid (4 Cards) -->
+          <div class="reports-kpi-grid">
+            <!-- Total Income -->
+            <div class="report-kpi-card kpi-income">
+              <div class="kpi-card-header">
+                <span class="kpi-card-title">รายรับรวม (Total Income)</span>
+                <div class="kpi-card-icon"><i class="fa-solid fa-arrow-down-long"></i></div>
+              </div>
+              <div class="kpi-card-val text-emerald" id="report-kpi-income">฿0.00</div>
+              <div class="kpi-card-sub">
+                <span id="report-kpi-income-count">0 รายการ</span>
+                <span id="report-kpi-income-avg">เฉลี่ย ฿0/วัน</span>
+              </div>
+            </div>
+
+            <!-- Total Expense -->
+            <div class="report-kpi-card kpi-expense">
+              <div class="kpi-card-header">
+                <span class="kpi-card-title">รายจ่ายรวม (Total Expense)</span>
+                <div class="kpi-card-icon"><i class="fa-solid fa-arrow-up-long"></i></div>
+              </div>
+              <div class="kpi-card-val text-rose" id="report-kpi-expense">฿0.00</div>
+              <div class="kpi-card-sub">
+                <span id="report-kpi-expense-count">0 รายการ</span>
+                <span id="report-kpi-expense-sub">จ่ายจริง ฿0</span>
+              </div>
+            </div>
+
+            <!-- Net Profit / Balance -->
+            <div class="report-kpi-card kpi-net">
+              <div class="kpi-card-header">
+                <span class="kpi-card-title">ดุลยภาพสุทธิ (Net Balance)</span>
+                <div class="kpi-card-icon"><i class="fa-solid fa-scale-balanced"></i></div>
+              </div>
+              <div class="kpi-card-val text-indigo" id="report-kpi-net">฿0.00</div>
+              <div class="kpi-card-sub">
+                <span id="report-kpi-net-status">ผลประกอบการสมดุล</span>
+                <span id="report-kpi-net-margin">Margin: 0%</span>
+              </div>
+            </div>
+
+            <!-- Shift Closing Sales -->
+            <div class="report-kpi-card kpi-shift">
+              <div class="kpi-card-header">
+                <span class="kpi-card-title">ยอดขายปิดกะ (Shift Sales)</span>
+                <div class="kpi-card-icon"><i class="fa-solid fa-store"></i></div>
+              </div>
+              <div class="kpi-card-val text-amber" id="report-kpi-shift">฿0.00</div>
+              <div class="kpi-card-sub">
+                <span id="report-kpi-shift-count">0 ใบปิดกะ</span>
+                <span id="report-kpi-shift-split">สด ฿0 / โอน ฿0</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2. Top 5 Rankings: Income & Expense (2 Columns) -->
+          <div class="reports-rankings-grid">
+            <!-- Top 5 Income Categories -->
+            <div class="rank-card">
+              <div class="rank-card-header">
+                <h4 class="rank-card-title text-emerald">
+                  <i class="fa-solid fa-ranking-star"></i> 5 อันดับหมวดหมู่ "รายรับ" สูงสุด
+                </h4>
+                <span class="badge badge-emerald" id="report-top-income-total">฿0.00</span>
+              </div>
+              <div class="rank-list" id="report-top-income-list">
+                <p class="text-slate text-sm text-center py-6">กำลังประมวลผลข้อมูล...</p>
+              </div>
+            </div>
+
+            <!-- Top 5 Expense Categories -->
+            <div class="rank-card">
+              <div class="rank-card-header">
+                <h4 class="rank-card-title text-rose">
+                  <i class="fa-solid fa-fire-flame-curved"></i> 5 อันดับหมวดหมู่ "รายจ่าย" สูงสุด
+                </h4>
+                <span class="badge badge-rose" id="report-top-expense-total">฿0.00</span>
+              </div>
+              <div class="rank-list" id="report-top-expense-list">
+                <p class="text-slate text-sm text-center py-6">กำลังประมวลผลข้อมูล...</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. Extreme Days & Analytics Insights (3 Columns) -->
+          <div class="reports-insights-grid">
+            <!-- Income Extremes -->
+            <div class="insight-card">
+              <div class="insight-card-header">
+                <i class="fa-solid fa-chart-line text-emerald"></i>
+                <span>สถิติวันที่สุดโต่ง: รายรับ</span>
+              </div>
+              
+              <!-- Peak Income Day -->
+              <div class="insight-block peak-block">
+                <div class="insight-label text-emerald">
+                  <i class="fa-solid fa-crown"></i> วันที่รายรับมากที่สุด (Peak Day)
+                </div>
+                <div class="insight-main-row">
+                  <span class="insight-date" id="report-peak-income-date">-</span>
+                  <span class="insight-val text-emerald" id="report-peak-income-val">฿0.00</span>
+                </div>
+                <div class="insight-highlight-item" id="report-peak-income-item">
+                  <span class="insight-highlight-name"><i class="fa-solid fa-tag mr-1 text-slate"></i> รายการเด่น: -</span>
+                  <span class="font-bold text-emerald">-</span>
+                </div>
+              </div>
+
+              <!-- Lowest Income Day -->
+              <div class="insight-block low-block">
+                <div class="insight-label text-slate">
+                  <i class="fa-solid fa-arrow-trend-down"></i> วันที่รายรับน้อยที่สุด (Lowest Day)
+                </div>
+                <div class="insight-main-row">
+                  <span class="insight-date" id="report-low-income-date">-</span>
+                  <span class="insight-val text-slate" id="report-low-income-val">฿0.00</span>
+                </div>
+                <div class="insight-highlight-item" id="report-low-income-item">
+                  <span class="insight-highlight-name"><i class="fa-solid fa-tag mr-1 text-slate"></i> รายการ: -</span>
+                  <span class="font-bold text-slate">-</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Expense Extremes -->
+            <div class="insight-card">
+              <div class="insight-card-header">
+                <i class="fa-solid fa-chart-line-down text-rose"></i>
+                <span>สถิติวันที่สุดโต่ง: รายจ่าย</span>
+              </div>
+
+              <!-- Peak Expense Day -->
+              <div class="insight-block peak-expense-block">
+                <div class="insight-label text-rose">
+                  <i class="fa-solid fa-triangle-exclamation"></i> วันที่รายจ่ายมากที่สุด (Peak Expense)
+                </div>
+                <div class="insight-main-row">
+                  <span class="insight-date" id="report-peak-expense-date">-</span>
+                  <span class="insight-val text-rose" id="report-peak-expense-val">฿0.00</span>
+                </div>
+                <div class="insight-highlight-item" id="report-peak-expense-item">
+                  <span class="insight-highlight-name"><i class="fa-solid fa-tag mr-1 text-slate"></i> รายจ่ายสูงสุด: -</span>
+                  <span class="font-bold text-rose">-</span>
+                </div>
+              </div>
+
+              <!-- Lowest Expense Day -->
+              <div class="insight-block low-expense-block">
+                <div class="insight-label text-slate">
+                  <i class="fa-solid fa-shield-halved"></i> วันที่รายจ่ายน้อยที่สุด (Low Expense)
+                </div>
+                <div class="insight-main-row">
+                  <span class="insight-date" id="report-low-expense-date">-</span>
+                  <span class="insight-val text-slate" id="report-low-expense-val">฿0.00</span>
+                </div>
+                <div class="insight-highlight-item" id="report-low-expense-item">
+                  <span class="insight-highlight-name"><i class="fa-solid fa-tag mr-1 text-slate"></i> รายจ่าย: -</span>
+                  <span class="font-bold text-slate">-</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Shift Closing Extremes -->
+            <div class="insight-card">
+              <div class="insight-card-header">
+                <i class="fa-solid fa-file-signature text-amber"></i>
+                <span>สถิติเอกสารปิดกะการขาย</span>
+              </div>
+
+              <!-- Peak Shift Day -->
+              <div class="insight-block shift-peak-block">
+                <div class="insight-label text-amber">
+                  <i class="fa-solid fa-trophy"></i> กะ/วันที่ยอดขายสูงสุด
+                </div>
+                <div class="insight-main-row">
+                  <span class="insight-date" id="report-peak-shift-date">-</span>
+                  <span class="insight-val text-amber" id="report-peak-shift-val">฿0.00</span>
+                </div>
+                <div class="insight-highlight-item" id="report-peak-shift-item">
+                  <span class="insight-highlight-name" id="report-peak-shift-name"><i class="fa-solid fa-file-lines mr-1 text-slate"></i> -</span>
+                  <span class="font-bold text-amber" id="report-peak-shift-sub">-</span>
+                </div>
+              </div>
+
+              <!-- Lowest Shift Day -->
+              <div class="insight-block shift-low-block">
+                <div class="insight-label text-slate">
+                  <i class="fa-solid fa-circle-minus"></i> กะ/วันที่ยอดขายน้อยที่สุด
+                </div>
+                <div class="insight-main-row">
+                  <span class="insight-date" id="report-low-shift-date">-</span>
+                  <span class="insight-val text-slate" id="report-low-shift-val">฿0.00</span>
+                </div>
+                <div class="insight-highlight-item" id="report-low-shift-item">
+                  <span class="insight-highlight-name" id="report-low-shift-name"><i class="fa-solid fa-file-lines mr-1 text-slate"></i> -</span>
+                  <span class="font-bold text-slate" id="report-low-shift-sub">-</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 4. Excel Export & Transactions Breakdown Table Section -->
+          <div class="reports-bottom-grid">
+            <!-- Left Side: Excel Export Card -->
             <div class="content-card export-banner-card">
               <div class="export-banner-icon">
                 <i class="fa-solid fa-file-excel"></i>
               </div>
-              <h2 class="export-banner-title">ดาวน์โหลดรายงาน Excel อัจฉริยะ</h2>
+              <h2 class="export-banner-title">ดาวน์โหลดรายงาน Excel</h2>
               <p class="export-banner-desc">
-                ออกรายงานไฟล์ Excel (.xlsx) ที่จัดรูปแบบแยกหน้างานอย่างมืออาชีพ ทั้ง สรุปภาพรวมทางการเงิน (Overview), ประวัติรายรับรายจ่ายฉบับสมบูรณ์ (Transactions), บัญชีการเงินคงเหลือ (Accounts), และรายการหมวดหมู่ (Categories) นำไปวิเคราะห์ต่อใน Excel หรือ Google Sheets ได้ในคลิกเดียว
+                ออกรายงานไฟล์ Excel (.xlsx) ที่จัดรูปแบบแยก Sheet อย่างมืออาชีพ ทั้ง สรุปภาพรวมทางการเงิน, ประวัติรายรับรายจ่ายฉบับสมบูรณ์, บัญชีคงเหลือ และหมวดหมู่ทั้งหมด นำไปเปิดใน Microsoft Excel หรือ Google Sheets ได้ทันที
               </p>
               
               <button class="btn btn-primary btn-lg" id="btn-export-excel-report">
-                <i class="fa-solid fa-file-arrow-down"></i> ดาวน์โหลดรายงาน Excel ตอนนี้
+                <i class="fa-solid fa-file-arrow-down"></i> ส่งออกไฟล์ Excel
               </button>
             </div>
 
-            <!-- Right Side: Advanced Summary Report Table -->
+            <!-- Right Side: Transactions Table for the Selected Period -->
             <div class="content-card reports-summary-card">
-              <div class="card-header">
-                <h4 class="card-title"><i class="fa-solid fa-magnifying-glass-chart text-indigo"></i> รายงานวิเคราะห์เจาะลึกแบบกรองข้อมูล</h4>
-              </div>
-              
-              <div class="reports-stats-mini mb-6">
-                <div class="stat-mini-box">
-                  <span class="stat-mini-lbl text-emerald">รายรับในขอบเขต</span>
-                  <span class="stat-mini-val text-emerald" id="report-scope-income">฿0.00</span>
-                </div>
-                <div class="stat-mini-box">
-                  <span class="stat-mini-lbl text-rose">รายจ่ายในขอบเขต</span>
-                  <span class="stat-mini-val text-rose" id="report-scope-expense">฿0.00</span>
-                </div>
-                <div class="stat-mini-box">
-                  <span class="stat-mini-lbl text-indigo">ดุลยภาพสุทธิ</span>
-                  <span class="stat-mini-val text-indigo" id="report-scope-net">฿0.00</span>
+              <div class="card-header flex-between">
+                <h4 class="card-title">
+                  <i class="fa-solid fa-list-check text-indigo"></i> 
+                  รายการธุรกรรมในช่วงเวลาที่เลือก
+                </h4>
+                <div class="search-input-group" style="max-width: 240px; margin: 0;">
+                  <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                  <input type="text" id="report-tx-search" placeholder="ค้นหาในรายงาน..." style="font-size: 0.8rem; padding-left: 2rem; height: 32px;">
                 </div>
               </div>
 
@@ -846,14 +1084,14 @@
                       <th>วันที่</th>
                       <th>ประเภท</th>
                       <th>หมวดหมู่</th>
-                      <th>บัญชี</th>
-                      <th>รายละเอียด</th>
+                      <th>บัญชี/ชำระโดย</th>
+                      <th>รายละเอียด / หมายเหตุ</th>
                       <th class="text-right">จำนวนเงิน</th>
                     </tr>
                   </thead>
                   <tbody id="reports-summary-body">
                     <tr>
-                      <td colspan="6" class="text-center text-slate py-8">ไม่มีรายการในช่วงเวลาที่กรอง กรุณาปรับเปลี่ยนตัวกรองที่แท็บบันทึกธุรกรรม</td>
+                      <td colspan="6" class="text-center text-slate py-8">กำลังโหลดข้อมูล...</td>
                     </tr>
                   </tbody>
                 </table>

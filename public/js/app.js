@@ -18,6 +18,12 @@ const State = {
     page: 1,
     limit: 10
   },
+  reportFilter: {
+    period: 'this-month',
+    startDate: '',
+    endDate: '',
+    search: ''
+  },
   uploadedFileUrl: null,
   uploadedFileName: null
 };
@@ -1226,85 +1232,487 @@ function refreshCategoriesLists() {
   });
 }
 
-// 5. REPORTS TAB DATA REFRESH
-function refreshReportsTable() {
-  const tbody = document.getElementById('reports-summary-body');
-  tbody.innerHTML = '';
+// ============================================================================
+// 5. ADVANCED FINANCIAL REPORTS & INTELLIGENCE ENGINE
+// ============================================================================
 
-  const todayStr = new Date().toLocaleDateString('sv-SE');
+// Initialize default period on start
+function initReportPeriodDates() {
+  if (!State.reportFilter.startDate || !State.reportFilter.endDate) {
+    setReportPeriod(State.reportFilter.period || 'this-month', false);
+  }
+}
 
-  // Filter transactions (guard against non-array)
-  const txList2 = Array.isArray(State.transactions) ? State.transactions : [];
-  let filtered = txList2.filter(t => {
-    if (State.filters.type === 'income' && t.type !== 'income') return false;
-    if (State.filters.type === 'expense' && t.type !== 'expense') return false;
-    if (State.filters.type === 'future' && t.type !== 'future') return false;
+// Set time period preset or custom
+function setReportPeriod(periodType, shouldRefresh = true) {
+  State.reportFilter.period = periodType;
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth(); // 0-indexed
 
-    if (State.filters.category !== 'all' && t.category !== State.filters.category) return false;
-    if (State.filters.account !== 'all' && t.accountId !== State.filters.account) return false;
+  let startStr = '';
+  let endStr = '';
+  let label = '';
 
-    if (State.filters.dateStart && t.date < State.filters.dateStart) return false;
-    if (State.filters.dateEnd && t.date > State.filters.dateEnd) return false;
-
-    return true;
-  });
-
-  // Calculate scope stats
-  const totalIncome = filtered
-    .filter(t => t.type === 'income')
-    .reduce((sum, t) => sum + Number(t.amount || 0), 0);
-
-  const totalExpense = filtered
-    .filter(t => t.type === 'expense' || t.type === 'future')
-    .reduce((sum, t) => sum + Number(t.amount || 0), 0);
-
-  const netBalance = totalIncome - totalExpense;
-
-  document.getElementById('report-scope-income').innerText = formatCurrency(totalIncome);
-  document.getElementById('report-scope-expense').innerText = formatCurrency(totalExpense);
-  
-  const netEl = document.getElementById('report-scope-net');
-  netEl.innerText = formatCurrency(netBalance);
-  if (netBalance >= 0) {
-    netEl.className = 'stat-mini-val text-emerald';
-  } else {
-    netEl.className = 'stat-mini-val text-rose';
+  if (periodType === 'this-month') {
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    startStr = firstDay.toLocaleDateString('sv-SE');
+    endStr = lastDay.toLocaleDateString('sv-SE');
+    label = `เดือนนี้ (${formatDateThShort(startStr)} - ${formatDateThShort(endStr)})`;
+  } else if (periodType === 'last-month') {
+    const firstDay = new Date(year, month - 1, 1);
+    const lastDay = new Date(year, month, 0);
+    startStr = firstDay.toLocaleDateString('sv-SE');
+    endStr = lastDay.toLocaleDateString('sv-SE');
+    label = `เดือนที่แล้ว (${formatDateThShort(startStr)} - ${formatDateThShort(endStr)})`;
+  } else if (periodType === 'last-30-days') {
+    const past = new Date();
+    past.setDate(now.getDate() - 29);
+    startStr = past.toLocaleDateString('sv-SE');
+    endStr = now.toLocaleDateString('sv-SE');
+    label = `30 วันล่าสุด (${formatDateThShort(startStr)} - ${formatDateThShort(endStr)})`;
+  } else if (periodType === 'this-year') {
+    startStr = `${year}-01-01`;
+    endStr = `${year}-12-31`;
+    label = `ประจำปี ${year + 543} (1 ม.ค. - 31 ธ.ค.)`;
+  } else if (periodType === 'custom') {
+    const customStart = document.getElementById('report-date-start')?.value;
+    const customEnd = document.getElementById('report-date-end')?.value;
+    startStr = customStart || State.reportFilter.startDate || `${year}-01-01`;
+    endStr = customEnd || State.reportFilter.endDate || now.toLocaleDateString('sv-SE');
+    label = `กำหนดเอง (${formatDateThShort(startStr)} - ${formatDateThShort(endStr)})`;
   }
 
-  if (filtered.length === 0) {
+  State.reportFilter.startDate = startStr;
+  State.reportFilter.endDate = endStr;
+
+  // Update DOM inputs
+  const startEl = document.getElementById('report-date-start');
+  const endEl = document.getElementById('report-date-end');
+  const labelEl = document.getElementById('report-period-label');
+  if (startEl) startEl.value = startStr;
+  if (endEl) endEl.value = endStr;
+  if (labelEl) labelEl.textContent = label;
+
+  // Update Pill Buttons Active State
+  const pills = document.querySelectorAll('#report-period-pills .period-pill-btn');
+  pills.forEach(btn => {
+    if (btn.getAttribute('data-period') === periodType) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+
+  if (shouldRefresh) {
+    refreshReportsTable();
+  }
+}
+
+// Main Reports Refresh Function
+function refreshReportsTable() {
+  initReportPeriodDates();
+
+  const start = State.reportFilter.startDate;
+  const end = State.reportFilter.endDate;
+  if (!start || !end) return;
+
+  const allTx = Array.isArray(State.transactions) ? State.transactions : [];
+  const allShifts = Array.isArray(State.shiftClosings) ? State.shiftClosings : [];
+
+  // กรองรายการธุรกรรมตามช่วงเวลา (ไม่รวมถังขยะ และตัด transfer_in ที่ซ้ำซ้อนออก)
+  const txList = allTx.filter(t => {
+    if (t.deletedAt) return false;
+    if (t.type === 'transfer_in') return false;
+    return t.date >= start && t.date <= end;
+  });
+
+  // กรองเอกสารปิดกะตามช่วงเวลา
+  const shiftList = allShifts.filter(s => {
+    return s.date >= start && s.date <= end;
+  });
+
+  // 1. คำนวณ KPI ภาพรวมทางการเงิน
+  const incomeTx = txList.filter(t => t.type === 'income');
+  const expenseTx = txList.filter(t => t.type === 'expense');
+  const futurePaidTx = txList.filter(t => t.type === 'future' && t.status === 'paid');
+  const futurePendingTx = txList.filter(t => t.type === 'future' && t.status !== 'paid');
+
+  const totalIncome = incomeTx.reduce((sum, t) => sum + Number(t.amount || 0), 0);
+  const actualExpense = expenseTx.reduce((sum, t) => sum + Number(t.amount || 0), 0);
+  const paidFutureExpense = futurePaidTx.reduce((sum, t) => sum + Number(t.amount || 0), 0);
+  const pendingFutureExpense = futurePendingTx.reduce((sum, t) => sum + Number(t.amount || 0), 0);
+
+  // รายจ่ายรวมสุทธิที่จ่ายแล้ว
+  const totalExpense = actualExpense + paidFutureExpense;
+  const netBalance = totalIncome - totalExpense;
+
+  // คำนวณจำนวนวันและค่าเฉลี่ย
+  const dayDiff = Math.max(1, Math.round((new Date(end) - new Date(start)) / (1000 * 60 * 60 * 24)) + 1);
+  const avgIncomePerDay = Math.round(totalIncome / dayDiff);
+
+  // คำนวณยอดปิดกะการขาย
+  let totalShiftSales = 0;
+  let totalShiftCash = 0;
+  let totalShiftTransfer = 0;
+  shiftList.forEach(s => {
+    const sIncome = Number(s.totalIncome || 0);
+    const sTransfer = Number(s.totalTransferIncome || 0);
+    const sCash = s.cashAmount || s.cashIncome || s.totalCashIncome || Math.max(0, sIncome - sTransfer);
+    totalShiftSales += sIncome;
+    totalShiftCash += Number(sCash || 0);
+    totalShiftTransfer += sTransfer;
+  });
+
+  // อัปเดตการ์ด KPI 4 ใบในหน้าเว็บ
+  const incomeEl = document.getElementById('report-kpi-income');
+  if (incomeEl) incomeEl.textContent = formatCurrency(totalIncome);
+  const incomeCountEl = document.getElementById('report-kpi-income-count');
+  if (incomeCountEl) incomeCountEl.textContent = `${incomeTx.length} รายการ`;
+  const incomeAvgEl = document.getElementById('report-kpi-income-avg');
+  if (incomeAvgEl) incomeAvgEl.textContent = `เฉลี่ย ฿${formatCurrencyNumber(avgIncomePerDay)}/วัน`;
+
+  const expenseEl = document.getElementById('report-kpi-expense');
+  if (expenseEl) expenseEl.textContent = formatCurrency(totalExpense);
+  const expenseCountEl = document.getElementById('report-kpi-expense-count');
+  if (expenseCountEl) expenseCountEl.textContent = `${expenseTx.length + futurePaidTx.length} รายการ`;
+  const expenseSubEl = document.getElementById('report-kpi-expense-sub');
+  if (expenseSubEl) {
+    expenseSubEl.textContent = pendingFutureExpense > 0 ? `ค้างจ่าย: ${formatCurrency(pendingFutureExpense)}` : 'ไม่มีค้างชำระ';
+  }
+
+  const netEl = document.getElementById('report-kpi-net');
+  if (netEl) {
+    netEl.textContent = (netBalance >= 0 ? '+' : '') + formatCurrency(netBalance);
+    netEl.className = `kpi-card-val ${netBalance >= 0 ? 'text-emerald' : 'text-rose'}`;
+  }
+  const netStatusEl = document.getElementById('report-kpi-net-status');
+  if (netStatusEl) {
+    netStatusEl.textContent = netBalance > 0 ? '🎉 ผลกำไรสุทธิเป็นบวก' : (netBalance < 0 ? '⚠️ รายจ่ายเกินรายรับ' : 'ผลประกอบการสมดุล');
+  }
+  const netMarginEl = document.getElementById('report-kpi-net-margin');
+  if (netMarginEl) {
+    const marginPct = totalIncome > 0 ? ((netBalance / totalIncome) * 100).toFixed(1) : 0;
+    netMarginEl.textContent = `Margin: ${marginPct}%`;
+  }
+
+  const shiftEl = document.getElementById('report-kpi-shift');
+  if (shiftEl) shiftEl.textContent = formatCurrency(totalShiftSales);
+  const shiftCountEl = document.getElementById('report-kpi-shift-count');
+  if (shiftCountEl) shiftCountEl.textContent = `${shiftList.length} ใบปิดกะ`;
+  const shiftSplitEl = document.getElementById('report-kpi-shift-split');
+  if (shiftSplitEl) shiftSplitEl.textContent = `สด ฿${formatCurrencyNumber(totalShiftCash)} / โอน ฿${formatCurrencyNumber(totalShiftTransfer)}`;
+
+  // 2. จัดอันดับ 5 อันดับหมวดหมู่รายรับสูงสุด
+  renderTop5Categories('income', incomeTx, totalIncome, 'report-top-income-list', 'report-top-income-total');
+
+  // 2. จัดอันดับ 5 อันดับหมวดหมู่รายจ่ายสูงสุด (รวมรายจ่ายจริง + จ่ายล่วงหน้าที่ชำระแล้ว)
+  renderTop5Categories('expense', [...expenseTx, ...futurePaidTx], totalExpense, 'report-top-expense-list', 'report-top-expense-total');
+
+  // 3. วิเคราะห์สถิติวันที่สุดโต่ง (Extreme Days & Highlights)
+  renderExtremeDays(txList, shiftList);
+
+  // 4. ตารางธุรกรรมตามช่วงเวลาที่เลือก
+  renderReportTransactionsTable(txList);
+}
+
+// ฟังก์ชันเรนเดอร์ 5 อันดับหมวดหมู่
+function renderTop5Categories(type, transactions, totalAmount, containerId, totalBadgeId) {
+  const container = document.getElementById(containerId);
+  const totalBadge = document.getElementById(totalBadgeId);
+  if (!container) return;
+
+  if (totalBadge) {
+    totalBadge.textContent = formatCurrency(totalAmount);
+  }
+
+  if (transactions.length === 0 || totalAmount <= 0) {
+    container.innerHTML = `
+      <div class="text-center py-8 text-slate">
+        <i class="fa-solid fa-inbox text-2xl mb-2 text-slate-300"></i>
+        <p class="text-sm">ไม่มีข้อมูล${type === 'income' ? 'รายรับ' : 'รายจ่าย'}ในช่วงเวลานี้</p>
+      </div>`;
+    return;
+  }
+
+  // รวมยอดเงินและจำนวนรายการตามหมวดหมู่
+  const catMap = {};
+  transactions.forEach(t => {
+    const catName = t.category || 'ไม่ระบุหมวดหมู่';
+    if (!catMap[catName]) {
+      catMap[catName] = { name: catName, total: 0, count: 0 };
+    }
+    catMap[catName].total += Number(t.amount || 0);
+    catMap[catName].count += 1;
+  });
+
+  // เรียงลำดับจากยอดสูงสุดไปต่ำสุด และตัดเอา 5 อันดับแรก
+  const sorted = Object.values(catMap).sort((a, b) => b.total - a.total).slice(0, 5);
+
+  let html = '';
+  sorted.forEach((cat, index) => {
+    const rank = index + 1;
+    const pct = totalAmount > 0 ? ((cat.total / totalAmount) * 100).toFixed(1) : 0;
+    const rankCls = rank === 1 ? 'rank-1' : (rank === 2 ? 'rank-2' : (rank === 3 ? 'rank-3' : 'rank-other'));
+    const isIncome = type === 'income';
+
+    html += `
+      <div class="rank-item ${rankCls}">
+        <div class="rank-item-meta">
+          <div class="rank-item-left">
+            <span class="rank-badge">${rank}</span>
+            <span>${cat.name}</span>
+            <span class="text-xs text-slate font-normal">(${cat.count} รายการ)</span>
+          </div>
+          <div class="rank-item-right">
+            <span class="rank-item-amount ${isIncome ? 'text-emerald' : 'text-rose'}">
+              ${isIncome ? '+' : '-'}฿${formatCurrencyNumber(cat.total)}
+            </span>
+            <span class="rank-item-pct ${isIncome ? 'income-pct' : 'expense-pct'}">${pct}%</span>
+          </div>
+        </div>
+        <div class="rank-progress-bg">
+          <div class="rank-progress-fill ${isIncome ? 'income-fill' : 'expense-fill'}" style="width: ${Math.min(100, Math.max(3, pct))}%;"></div>
+        </div>
+      </div>`;
+  });
+
+  container.innerHTML = html;
+}
+
+// ฟังก์ชันวิเคราะห์วันที่สุดโต่ง (Extreme Days & Highlights)
+function renderExtremeDays(txList, shiftList) {
+  // --- 1. วิเคราะห์รายรับ (Income Days) ---
+  const dailyIncome = {};
+  txList.filter(t => t.type === 'income').forEach(t => {
+    if (!dailyIncome[t.date]) {
+      dailyIncome[t.date] = { date: t.date, total: 0, items: [] };
+    }
+    dailyIncome[t.date].total += Number(t.amount || 0);
+    dailyIncome[t.date].items.push(t);
+  });
+
+  const incomeDays = Object.values(dailyIncome);
+  if (incomeDays.length > 0) {
+    // วันที่รายรับมากที่สุด
+    const peakInc = incomeDays.reduce((max, d) => d.total > max.total ? d : max, incomeDays[0]);
+    // วันที่รายรับน้อยที่สุด (จากวันที่มีรายรับ > 0)
+    const lowInc = incomeDays.reduce((min, d) => d.total < min.total ? d : min, incomeDays[0]);
+
+    // หาไอเทมเด่นในวันที่มีรายรับมากสุด
+    const topIncItem = peakInc.items.sort((a, b) => Number(b.amount || 0) - Number(a.amount || 0))[0];
+    const lowIncItem = lowInc.items.sort((a, b) => Number(a.amount || 0) - Number(b.amount || 0))[0];
+
+    updateElText('report-peak-income-date', formatDateThShort(peakInc.date));
+    updateElText('report-peak-income-val', `+฿${formatCurrencyNumber(peakInc.total)}`);
+    updateElHtml('report-peak-income-item', `
+      <span class="insight-highlight-name" title="${topIncItem?.notes || topIncItem?.category || '-'}">
+        <i class="fa-solid fa-star text-amber mr-1"></i> ${topIncItem?.category || '-'}: ${topIncItem?.notes || 'ไม่มีหมายเหตุ'}
+      </span>
+      <span class="font-bold text-emerald">+฿${formatCurrencyNumber(topIncItem?.amount || 0)}</span>
+    `);
+
+    updateElText('report-low-income-date', formatDateThShort(lowInc.date));
+    updateElText('report-low-income-val', `+฿${formatCurrencyNumber(lowInc.total)}`);
+    updateElHtml('report-low-income-item', `
+      <span class="insight-highlight-name" title="${lowIncItem?.notes || lowIncItem?.category || '-'}">
+        <i class="fa-solid fa-receipt text-slate mr-1"></i> ${lowIncItem?.category || '-'}: ${lowIncItem?.notes || 'ไม่มีหมายเหตุ'}
+      </span>
+      <span class="font-bold text-slate">+฿${formatCurrencyNumber(lowIncItem?.amount || 0)}</span>
+    `);
+  } else {
+    resetIncomeExtremes();
+  }
+
+  // --- 2. วิเคราะห์รายจ่าย (Expense Days) ---
+  const dailyExpense = {};
+  txList.filter(t => t.type === 'expense' || (t.type === 'future' && t.status === 'paid')).forEach(t => {
+    if (!dailyExpense[t.date]) {
+      dailyExpense[t.date] = { date: t.date, total: 0, items: [] };
+    }
+    dailyExpense[t.date].total += Number(t.amount || 0);
+    dailyExpense[t.date].items.push(t);
+  });
+
+  const expenseDays = Object.values(dailyExpense);
+  if (expenseDays.length > 0) {
+    const peakExp = expenseDays.reduce((max, d) => d.total > max.total ? d : max, expenseDays[0]);
+    const lowExp = expenseDays.reduce((min, d) => d.total < min.total ? d : min, expenseDays[0]);
+
+    const topExpItem = peakExp.items.sort((a, b) => Number(b.amount || 0) - Number(a.amount || 0))[0];
+    const lowExpItem = lowExp.items.sort((a, b) => Number(a.amount || 0) - Number(b.amount || 0))[0];
+
+    updateElText('report-peak-expense-date', formatDateThShort(peakExp.date));
+    updateElText('report-peak-expense-val', `-฿${formatCurrencyNumber(peakExp.total)}`);
+    updateElHtml('report-peak-expense-item', `
+      <span class="insight-highlight-name" title="${topExpItem?.notes || topExpItem?.category || '-'}">
+        <i class="fa-solid fa-circle-exclamation text-rose mr-1"></i> ${topExpItem?.category || '-'}: ${topExpItem?.notes || 'ไม่มีหมายเหตุ'}
+      </span>
+      <span class="font-bold text-rose">-฿${formatCurrencyNumber(topExpItem?.amount || 0)}</span>
+    `);
+
+    updateElText('report-low-expense-date', formatDateThShort(lowExp.date));
+    updateElText('report-low-expense-val', `-฿${formatCurrencyNumber(lowExp.total)}`);
+    updateElHtml('report-low-expense-item', `
+      <span class="insight-highlight-name" title="${lowExpItem?.notes || lowExpItem?.category || '-'}">
+        <i class="fa-solid fa-tag text-slate mr-1"></i> ${lowExpItem?.category || '-'}: ${lowExpItem?.notes || 'ไม่มีหมายเหตุ'}
+      </span>
+      <span class="font-bold text-slate">-฿${formatCurrencyNumber(lowExpItem?.amount || 0)}</span>
+    `);
+  } else {
+    resetExpenseExtremes();
+  }
+
+  // --- 3. วิเคราะห์เอกสารปิดกะ (Shift Closings) ---
+  if (shiftList.length > 0) {
+    const sortedShifts = [...shiftList].sort((a, b) => Number(b.totalIncome || 0) - Number(a.totalIncome || 0));
+    const peakShift = sortedShifts[0];
+    const lowShift = sortedShifts[sortedShifts.length - 1];
+
+    const peakIncome = Number(peakShift.totalIncome || 0);
+    const peakTransfer = Number(peakShift.totalTransferIncome || 0);
+    const peakCash = peakShift.cashAmount || peakShift.cashIncome || peakShift.totalCashIncome || Math.max(0, peakIncome - peakTransfer);
+
+    const lowIncome = Number(lowShift.totalIncome || 0);
+    const lowTransfer = Number(lowShift.totalTransferIncome || 0);
+    const lowCash = lowShift.cashAmount || lowShift.cashIncome || lowShift.totalCashIncome || Math.max(0, lowIncome - lowTransfer);
+
+    updateElText('report-peak-shift-date', formatDateThShort(peakShift.date));
+    updateElText('report-peak-shift-val', `฿${formatCurrencyNumber(peakIncome)}`);
+    updateElHtml('report-peak-shift-name', `<i class="fa-solid fa-file-invoice text-amber mr-1"></i> ${peakShift.shiftName || peakShift.id}`);
+    updateElText('report-peak-shift-sub', `สด ฿${formatCurrencyNumber(peakCash)} / โอน ฿${formatCurrencyNumber(peakTransfer)}`);
+
+    updateElText('report-low-shift-date', formatDateThShort(lowShift.date));
+    updateElText('report-low-shift-val', `฿${formatCurrencyNumber(lowIncome)}`);
+    updateElHtml('report-low-shift-name', `<i class="fa-solid fa-file-lines text-slate mr-1"></i> ${lowShift.shiftName || lowShift.id}`);
+    updateElText('report-low-shift-sub', `สด ฿${formatCurrencyNumber(lowCash)} / โอน ฿${formatCurrencyNumber(lowTransfer)}`);
+  } else {
+    resetShiftExtremes();
+  }
+}
+
+function updateElText(id, text) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = text;
+}
+
+function updateElHtml(id, html) {
+  const el = document.getElementById(id);
+  if (el) el.innerHTML = html;
+}
+
+function resetIncomeExtremes() {
+  updateElText('report-peak-income-date', '-');
+  updateElText('report-peak-income-val', '฿0.00');
+  updateElHtml('report-peak-income-item', '<span class="insight-highlight-name">ไม่มีข้อมูล</span><span>-</span>');
+  updateElText('report-low-income-date', '-');
+  updateElText('report-low-income-val', '฿0.00');
+  updateElHtml('report-low-income-item', '<span class="insight-highlight-name">ไม่มีข้อมูล</span><span>-</span>');
+}
+
+function resetExpenseExtremes() {
+  updateElText('report-peak-expense-date', '-');
+  updateElText('report-peak-expense-val', '฿0.00');
+  updateElHtml('report-peak-expense-item', '<span class="insight-highlight-name">ไม่มีข้อมูล</span><span>-</span>');
+  updateElText('report-low-expense-date', '-');
+  updateElText('report-low-expense-val', '฿0.00');
+  updateElHtml('report-low-expense-item', '<span class="insight-highlight-name">ไม่มีข้อมูล</span><span>-</span>');
+}
+
+function resetShiftExtremes() {
+  updateElText('report-peak-shift-date', '-');
+  updateElText('report-peak-shift-val', '฿0.00');
+  updateElHtml('report-peak-shift-name', '<i class="fa-solid fa-file-invoice text-slate mr-1"></i> ไม่มีข้อมูลปิดกะ');
+  updateElText('report-peak-shift-sub', '-');
+  updateElText('report-low-shift-date', '-');
+  updateElText('report-low-shift-val', '฿0.00');
+  updateElHtml('report-low-shift-name', '<i class="fa-solid fa-file-lines text-slate mr-1"></i> ไม่มีข้อมูลปิดกะ');
+  updateElText('report-low-shift-sub', '-');
+}
+
+// ฟังก์ชันเรนเดอร์ตารางธุรกรรมในหน้า Reports
+function renderReportTransactionsTable(txList) {
+  const tbody = document.getElementById('reports-summary-body');
+  if (!tbody) return;
+
+  const searchQuery = (State.reportFilter.search || '').toLowerCase().trim();
+
+  // กรองตามคำค้นหาในตาราง
+  let list = txList;
+  if (searchQuery) {
+    list = txList.filter(t => {
+      const matchCat = (t.category || '').toLowerCase().includes(searchQuery);
+      const matchNote = (t.notes || '').toLowerCase().includes(searchQuery);
+      const matchAmt = String(t.amount || '').includes(searchQuery);
+      const acc = State.accounts.find(a => a.id === t.accountId);
+      const matchAcc = acc ? acc.name.toLowerCase().includes(searchQuery) : false;
+      return matchCat || matchNote || matchAmt || matchAcc;
+    });
+  }
+
+  if (list.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="6" class="text-center py-12 text-slate">
-          ไม่มีรายการตามช่วงเวลาที่กรอง กรุณาตั้งค่าตัวกรองในแถบ บันทึกรายรับ-รายจ่าย
+        <td colspan="6" class="text-center py-10 text-slate">
+          <i class="fa-solid fa-magnifying-glass text-2xl mb-2 text-slate-300"></i>
+          <p class="text-sm">ไม่พบรายการธุรกรรมที่ตรงกับเงื่อนไขในช่วงเวลานี้</p>
         </td>
       </tr>`;
     return;
   }
 
-  // Draw max 50 rows in mini table
-  const showData = filtered.slice(0, 50);
+  // เรียงตามวันที่ล่าสุดก่อน และจำกัดการแสดงผล 60 รายการแรกเพื่อความรวดเร็ว
+  const sorted = [...list].sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.id || '').localeCompare(a.id || ''));
+  const displayList = sorted.slice(0, 60);
 
-  showData.forEach(t => {
+  let html = '';
+  displayList.forEach(t => {
     const acc = State.accounts.find(a => a.id === t.accountId);
-    
-    tbody.innerHTML += `
+    let typeBadge = '';
+    if (t.type === 'income') {
+      typeBadge = '<span class="badge badge-emerald"><i class="fa-solid fa-arrow-down mr-1"></i> รายรับ</span>';
+    } else if (t.type === 'future') {
+      typeBadge = `<span class="badge badge-amber"><i class="fa-regular fa-clock mr-1"></i> จ่ายล่วงหน้า</span>`;
+    } else {
+      typeBadge = '<span class="badge badge-rose"><i class="fa-solid fa-arrow-up mr-1"></i> รายจ่าย</span>';
+    }
+
+    const payMethodText = t.paymentMethod === 'Cash' ? 'เงินสด' : (t.paymentMethod === 'Transfer' ? 'โอนเงิน' : 'ไม่ระบุ');
+    const accText = t.paymentMethod === 'Unspecified' || t.accountId === 'acc-unspecified' ? '-' : (acc ? acc.name : '-');
+
+    const amountCls = t.type === 'income' ? 'text-amount-inc font-bold' : (t.type === 'future' ? 'text-amount-future font-bold' : 'text-amount-exp font-bold');
+    const amountPrefix = t.type === 'income' ? '+' : '-';
+
+    html += `
       <tr>
-        <td>${formatDateThShort(t.date)}</td>
+        <td class="table-text-main font-semibold">${formatDateThShort(t.date)}</td>
+        <td>${typeBadge}</td>
+        <td class="table-text-main">${t.category || '-'}</td>
         <td>
-          ${t.type === 'income' 
-            ? '<span class="badge badge-emerald">รายรับ</span>' 
-            : t.type === 'future'
-              ? '<span class="badge badge-amber">จ่ายล่วงหน้า</span>'
-              : '<span class="badge badge-rose">รายจ่าย</span>'}
+          <div class="table-text-main">${accText}</div>
+          <div class="table-text-sub text-xs text-slate">${payMethodText}</div>
         </td>
-        <td class="table-text-main">${t.category}</td>
-        <td>${acc ? acc.name : 'ไม่ระบุ'}</td>
-        <td>${t.notes || '-'}</td>
-        <td class="${t.type === 'income' ? 'text-amount-inc' : t.type === 'future' ? 'text-amount-future' : 'text-amount-exp'} text-right">
-          ${t.type === 'income' ? '+' : '-'}${formatCurrency(t.amount)}
+        <td>
+          <div class="table-text-main">${t.notes || '-'}</div>
+          ${t.dueDate ? `<div class="table-text-sub text-xs text-amber font-medium"><i class="fa-regular fa-calendar-check mr-1"></i>ครบกำหนด: ${formatDateThShort(t.dueDate)}</div>` : ''}
+        </td>
+        <td class="${amountCls} text-right">
+          ${amountPrefix}฿${formatCurrencyNumber(t.amount || 0)}
         </td>
       </tr>`;
   });
+
+  if (sorted.length > 60) {
+    html += `
+      <tr>
+        <td colspan="6" class="text-center py-3 text-xs text-slate bg-slate-50">
+          แสดง 60 รายการล่าสุดจากทั้งหมด ${sorted.length} รายการในช่วงเวลานี้ (ดาวน์โหลด Excel เพื่อดูรายการฉบับเต็ม)
+        </td>
+      </tr>`;
+  }
+
+  tbody.innerHTML = html;
 }
 
 // --- Event Listeners and Setup ---
@@ -1334,6 +1742,9 @@ function setupEventListeners() {
 
       if (targetView === 'shift-closing') {
         refreshShiftClosingsTable();
+      }
+      if (targetView === 'reports') {
+        refreshReportsTable();
       }
 
       // Close mobile sidebar if open
@@ -1641,7 +2052,31 @@ function setupEventListeners() {
   document.getElementById('category-form').addEventListener('submit', handleCategorySubmit);
   document.getElementById('btn-cancel-category').addEventListener('click', resetCategoryForm);
 
-  // 9. Excel Export Banner
+  // 9. Advanced Reports Controls & Period Listeners
+  const periodPillButtons = document.querySelectorAll('#report-period-pills .period-pill-btn');
+  periodPillButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const p = btn.getAttribute('data-period');
+      setReportPeriod(p);
+    });
+  });
+
+  const btnApplyPeriod = document.getElementById('btn-apply-report-period');
+  if (btnApplyPeriod) {
+    btnApplyPeriod.addEventListener('click', () => {
+      setReportPeriod('custom');
+    });
+  }
+
+  const reportSearchInput = document.getElementById('report-tx-search');
+  if (reportSearchInput) {
+    reportSearchInput.addEventListener('input', (e) => {
+      State.reportFilter.search = e.target.value;
+      refreshReportsTable();
+    });
+  }
+
+  // Excel Export Banner
   document.getElementById('btn-export-excel-report').addEventListener('click', () => {
     ExcelExport.exportToExcel(State.transactions, State.accounts, State.categories);
   });
